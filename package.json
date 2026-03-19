@@ -1,0 +1,22 @@
+{
+  "name": "videostand-skill",
+  "version": "0.1.0",
+  "description": "CLI to install the VideoStand skill for Codex or Kiro",
+  "type": "module",
+  "bin": {
+    "videostand": "./bin/videostand.js"
+  },
+  "files": [
+    "bin",
+    "assets",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test:e2e": "bash ./e2e/install.e2e.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

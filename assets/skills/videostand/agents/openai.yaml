@@ -1,0 +1,4 @@
+interface:
+  display_name: "VideoStand"
+  short_description: "Resume video local/YouTube com analise local (frames + ASR local)."
+  default_prompt: "Analyze this local video or YouTube link with local-first workflow: extract frames, run local audio transcription, inspect keyframes directly, and return a concise multimodal timeline with uncertainty notes."
