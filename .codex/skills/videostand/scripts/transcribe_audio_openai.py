@@ -101,7 +101,13 @@ def has_audio_stream(video_path: Path) -> bool:
     return "audio" in result.stdout
 
 
-def extract_audio(video_path: Path, wav_path: Path) -> None:
+def extract_audio(video_path: Path, audio_path: Path, audio_format: str) -> None:
+    codec_args: list[str]
+    if audio_format == "mp3":
+        codec_args = ["-c:a", "mp3", "-b:a", "64k"]
+    else:
+        codec_args = ["-c:a", "pcm_s16le"]
+
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -117,9 +123,8 @@ def extract_audio(video_path: Path, wav_path: Path) -> None:
         "1",
         "-ar",
         "16000",
-        "-c:a",
-        "pcm_s16le",
-        str(wav_path),
+        *codec_args,
+        str(audio_path),
     ]
     try:
         run_cmd(cmd)
@@ -127,6 +132,12 @@ def extract_audio(video_path: Path, wav_path: Path) -> None:
         raise RuntimeError("ffmpeg not found. Install ffmpeg package first.")
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(f"ffmpeg audio extraction failed: {exc.stderr.strip()}") from exc
+
+
+def content_type_for_audio(audio_format: str) -> str:
+    if audio_format == "mp3":
+        return "audio/mpeg"
+    return "audio/wav"
 
 
 def build_multipart_body(
@@ -174,6 +185,7 @@ def call_transcriptions_api(
     language: str | None,
     prompt: str | None,
     timeout_seconds: int,
+    audio_content_type: str,
 ) -> str:
     fields: dict[str, str] = {
         "model": model,
@@ -189,7 +201,7 @@ def call_transcriptions_api(
         file_field_name="file",
         file_name=audio_path.name,
         file_bytes=audio_path.read_bytes(),
-        file_content_type="audio/wav",
+        file_content_type=audio_content_type,
     )
 
     url = api_base.rstrip("/") + "/audio/transcriptions"
@@ -237,12 +249,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tmp-audio-path",
         type=Path,
-        help="Optional temporary WAV output path",
+        help="Optional temporary extracted-audio path",
+    )
+    parser.add_argument(
+        "--temp-audio-format",
+        choices=["mp3", "wav"],
+        default="mp3",
+        help="Temporary extracted audio format (mp3 is faster for upload)",
     )
     parser.add_argument(
         "--keep-temp-audio",
         action="store_true",
-        help="Keep temporary WAV file after transcription",
+        help="Keep temporary extracted audio file after transcription",
     )
     return parser.parse_args()
 
@@ -261,9 +279,11 @@ def main() -> int:
     output_path = args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    wav_path = args.tmp_audio_path or output_path.with_suffix(".wav")
+    temp_suffix = ".mp3" if args.temp_audio_format == "mp3" else ".wav"
+    wav_path = args.tmp_audio_path or output_path.with_suffix(temp_suffix)
+    audio_content_type = content_type_for_audio(args.temp_audio_format)
     try:
-        extract_audio(args.input, wav_path)
+        extract_audio(args.input, wav_path, args.temp_audio_format)
         transcript = call_transcriptions_api(
             api_base=args.api_base,
             api_key=api_key,
@@ -272,6 +292,7 @@ def main() -> int:
             language=args.language,
             prompt=args.prompt,
             timeout_seconds=args.timeout_seconds,
+            audio_content_type=audio_content_type,
         )
         output_path.write_text(transcript + "\n", encoding="utf-8")
         print(f"[ok] Transcript: {output_path}")

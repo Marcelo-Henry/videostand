@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import concurrent.futures
 import json
 import os
 import sys
@@ -113,15 +114,27 @@ def run_batch_summaries(
 ) -> list[dict[str, Any]]:
     chunks = batched(frames, args.batch_size)
     partials: list[dict[str, Any]] = []
+    chunk_transcript_text = None
+    if transcript_text and args.chunk_transcript_chars > 0:
+        if len(transcript_text) <= args.chunk_transcript_chars:
+            chunk_transcript_text = transcript_text
+        else:
+            chunk_transcript_text = (
+                transcript_text[: args.chunk_transcript_chars]
+                + "\n\n[transcript context truncated for chunk step]"
+            )
 
-    for i, chunk in enumerate(chunks, start=1):
+    def summarize_chunk(
+        chunk_index: int,
+        chunk: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         frame_lines: list[str] = []
         content: list[dict[str, Any]] = []
         content.append(
             {
                 "type": "input_text",
                 "text": (
-                    f"Chunk {i}/{len(chunks)}. "
+                    f"Chunk {chunk_index}/{len(chunks)}. "
                     f"Language: {args.language}. "
                     "Analyze these frames as one contiguous segment. "
                     "Return: (1) what is happening, (2) key visual events with timestamps, "
@@ -129,13 +142,13 @@ def run_batch_summaries(
                 ),
             }
         )
-        if transcript_text:
+        if chunk_transcript_text:
             content.append(
                 {
                     "type": "input_text",
                     "text": (
                         "Audio transcript context (may contain ASR errors; cross-check with visuals):\n"
-                        f"{transcript_text}"
+                        f"{chunk_transcript_text}"
                     ),
                 }
             )
@@ -182,15 +195,34 @@ def run_batch_summaries(
             timeout_s=args.timeout_seconds,
         )
         text = extract_text(response)
-        partials.append(
-            {
-                "chunk_index": i,
-                "chunk_size": len(chunk),
-                "summary": text,
-            }
-        )
-        print(f"[ok] Chunk {i}/{len(chunks)} summarized ({len(chunk)} frames).")
+        return {
+            "chunk_index": chunk_index,
+            "chunk_size": len(chunk),
+            "summary": text,
+        }
 
+    if args.parallel_requests <= 1:
+        for i, chunk in enumerate(chunks, start=1):
+            partial = summarize_chunk(i, chunk)
+            partials.append(partial)
+            print(f"[ok] Chunk {i}/{len(chunks)} summarized ({len(chunk)} frames).")
+    else:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=args.parallel_requests
+        ) as executor:
+            future_to_chunk = {
+                executor.submit(summarize_chunk, i, chunk): (i, len(chunk))
+                for i, chunk in enumerate(chunks, start=1)
+            }
+            for future in concurrent.futures.as_completed(future_to_chunk):
+                chunk_index, chunk_size = future_to_chunk[future]
+                partial = future.result()
+                partials.append(partial)
+                print(
+                    f"[ok] Chunk {chunk_index}/{len(chunks)} summarized ({chunk_size} frames)."
+                )
+
+    partials.sort(key=lambda item: int(item["chunk_index"]))
     return partials
 
 
@@ -350,11 +382,23 @@ def parse_args() -> argparse.Namespace:
         help="Maximum characters loaded from transcript file",
     )
     parser.add_argument(
+        "--chunk-transcript-chars",
+        type=int,
+        default=1200,
+        help="Transcript characters injected in each chunk request (0 disables)",
+    )
+    parser.add_argument(
         "--env-file",
         type=Path,
         help="Optional dotenv file used when GEMINI_API_KEY is not already set",
     )
     parser.add_argument("--timeout-seconds", type=int, default=180, help="HTTP timeout")
+    parser.add_argument(
+        "--parallel-requests",
+        type=int,
+        default=2,
+        help="Number of chunk requests sent in parallel",
+    )
     parser.add_argument("--batch-max-tokens", type=int, default=900, help="Max tokens for each chunk")
     parser.add_argument("--final-max-tokens", type=int, default=1400, help="Max tokens for final merge")
     return parser.parse_args()
@@ -367,6 +411,10 @@ def main() -> int:
         raise SystemExit("--batch-size must be > 0")
     if args.max_frames is not None and args.max_frames <= 0:
         raise SystemExit("--max-frames must be > 0")
+    if args.chunk_transcript_chars < 0:
+        raise SystemExit("--chunk-transcript-chars must be >= 0")
+    if args.parallel_requests <= 0:
+        raise SystemExit("--parallel-requests must be > 0")
 
     api_key = resolve_gemini_api_key(args.env_file)
 

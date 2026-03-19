@@ -1,20 +1,20 @@
 ---
 name: videostand
-description: Resumir videos .mp4 combinando amostragem de frames (visao) e transcricao de audio. Use quando Codex receber um video, quando o usuario pedir para entender/resumir/descrever gravacao de tela, gameplay ou vinheta, ou quando for necessario extrair timeline multimodal (visual + fala) sem assistir ao video inteiro.
+description: Resumir videos locais (.mp4) ou links do YouTube em modo local-first, sem depender de LLM por API para entender imagem/audio. Use quando Codex receber um video, URL do YouTube, ou quando o usuario pedir resumo/timeline de gravacao de tela, gameplay ou vinheta. O fluxo principal usa frames + transcricao local (faster-whisper) e a propria IA do Codex para interpretar os keyframes.
 ---
 
 # VideoStand
 
-Extrair frames representativos de um video, transcrever o audio quando existir, combinar imagem + fala e produzir resumo final com timeline.
+Extrair frames representativos, transcrever audio localmente quando disponivel e preparar um pacote de revisao para a propria IA do Codex gerar o resumo final.
 
-Priorizar amostragem por tempo (`--interval-seconds`) quando o video tem FPS muito alto ou muito variavel. Usar `--every-n-frames` quando a granularidade por frame for desejada.
+Priorizar amostragem por tempo (`--interval-seconds`) em videos longos. Usar `--every-n-frames` quando for necessario granularidade por frame.
 
 ## Quick Start
 
 Definir o caminho da skill:
 
 ```bash
-export VSUM="/home/marcelo/EvoGuia/.codex/skills/videostand/scripts"
+export VSUM="/home/marcelo/videostand/.codex/skills/videostand/scripts"
 ```
 
 Executar pipeline completo:
@@ -23,16 +23,27 @@ Executar pipeline completo:
 "$VSUM/run_video_summary.sh" ./video.mp4 ./output-video-summary gpt-4.1-mini
 ```
 
-O script usa `GEMINI_API_KEY` do ambiente. Se nao existir, tenta carregar automaticamente de `/home/marcelo/EvoGuia/.env.local`.
-Por padrao, tenta transcrever audio com `gpt-4o-mini-transcribe`.
+Ou com URL do YouTube:
+
+```bash
+"$VSUM/run_video_summary.sh" "https://www.youtube.com/watch?v=VIDEO_ID" ./output-video-summary gpt-4.1-mini
+```
+
+Por padrao:
+- transcricao: local (`faster-whisper`)
+- resumo: local (`codex-local`, sem chamada de LLM por API)
+
 Se `ffmpeg` faltar, o runner pergunta permissao para instalar automaticamente sem expor comando tecnico.
+Para links do YouTube, `yt-dlp` precisa estar instalado.
 
 Saidas esperadas:
 - `output-video-summary/frames/*.jpg`
 - `output-video-summary/frames/frames_manifest.json`
 - `output-video-summary/audio_transcript.txt` (quando houver audio)
-- `output-video-summary/video_summary.md`
-- `output-video-summary/video_summary.partials.json`
+- `output-video-summary/audio_transcript.segments.json` (quando houver audio)
+- `output-video-summary/review_keyframes/*.jpg`
+- `output-video-summary/review_keyframes.json`
+- `output-video-summary/codex_review_pack.md`
 
 ## Output Policy (obrigatorio)
 
@@ -60,15 +71,19 @@ Saidas esperadas:
 
 ## Workflow
 
-1. Validar prerequisitos (`ffmpeg`, `ffprobe`, chave em `GEMINI_API_KEY` ou `/home/marcelo/EvoGuia/.env.local`).
+1. Resolver input:
+   - arquivo local (`.mp4`)
+   - URL do YouTube (baixar para `output/input/` via `yt-dlp`)
+2. Validar prerequisitos (`ffmpeg`, `ffprobe`).
    - Se faltar `ffmpeg`, seguir `Permission Policy (ffmpeg)` antes de prosseguir.
-2. Extrair frames:
+3. Extrair frames:
    - por frame: `extract_frames.py --every-n-frames 15`
    - por tempo: `extract_frames.py --interval-seconds 0.5`
-3. Gerar `frames_manifest.json` com timestamps estimados.
-4. Extrair e transcrever audio com `transcribe_audio_openai.py` quando existir stream de audio.
-5. Resumir lotes de imagens + contexto de transcricao com `summarize_frames_openai.py`.
-6. Consolidar resumo final + timeline.
+4. Gerar `frames_manifest.json` com timestamps estimados.
+5. Transcrever audio localmente com `transcribe_audio_local.py` quando existir stream de audio.
+6. Preparar keyframes de revisao + pacote markdown com `prepare_codex_video_review.py`.
+7. Abrir `review_keyframes/*.jpg` e `codex_review_pack.md` no proprio Codex.
+8. Produzir resumo final para o usuario (sem revelar bastidores).
 
 ## Core Commands
 
@@ -79,7 +94,9 @@ python3 "$VSUM/extract_frames.py" \
   --input ./video.mp4 \
   --output-dir ./tmp-frames \
   --interval-seconds 0.5 \
-  --max-frames 180
+  --max-frames 180 \
+  --max-width 960 \
+  --jpeg-quality 6
 ```
 
 Extrair frames por salto de frames:
@@ -94,30 +111,54 @@ python3 "$VSUM/extract_frames.py" \
 Gerar resumo a partir do manifesto:
 
 ```bash
-GEMINI_API_KEY=... \
-python3 "$VSUM/summarize_frames_openai.py" \
+python3 "$VSUM/prepare_codex_video_review.py" \
   --manifest ./tmp-frames/frames_manifest.json \
-  --model gpt-4.1-mini \
-  --batch-size 12 \
-  --detail low \
-  --language pt-BR \
+  --output-dir ./tmp-frames \
+  --max-keyframes 24 \
   --transcript-file ./tmp-frames/audio_transcript.txt \
-  --output ./tmp-frames/video_summary.md
+  --output ./tmp-frames/codex_review_pack.md
 ```
 
 Transcrever audio do video:
 
 ```bash
-python3 "$VSUM/transcribe_audio_openai.py" \
+python3 "$VSUM/transcribe_audio_local.py" \
   --input ./video.mp4 \
   --output ./tmp-frames/audio_transcript.txt \
-  --model gpt-4o-mini-transcribe \
+  --segments-json ./tmp-frames/audio_transcript.segments.json \
+  --model-size small \
   --language pt
+```
+
+## Performance Knobs
+
+- `AUTO_SMART_SAMPLING=1` (padrao): escolhe automaticamente `INTERVAL_SECONDS`, `MAX_FRAMES` e `BATCH_SIZE` com base na duracao do video.
+- `AUDIO_BACKEND=local` (padrao): usa transcricao local.
+- `SUMMARY_BACKEND=codex-local` (padrao): prepara pack local para a IA do Codex.
+- `LOCAL_ASR_MODEL=small` (padrao): modelo Whisper local.
+- `MAX_KEYFRAMES_FOR_REVIEW=24` (padrao): quantidade de keyframes para revisao.
+- `MAX_WIDTH` e `JPEG_QUALITY`: controlam tamanho dos frames enviados.
+
+Exemplo de execucao rapida:
+
+```bash
+AUTO_SMART_SAMPLING=1 \
+AUDIO_BACKEND=local \
+SUMMARY_BACKEND=codex-local \
+MAX_WIDTH=960 \
+MAX_KEYFRAMES_FOR_REVIEW=20 \
+"$VSUM/run_video_summary.sh" ./video.mp4 ./output-fast gpt-4.1-mini
+```
+
+Instalar dependencia de ASR local:
+
+```bash
+"$VSUM/install_local_asr.sh"
 ```
 
 ## Quality Guardrails
 
-- Evitar enviar todos os frames de videos longos sem limite. Usar `--max-frames`.
+- Evitar excesso de frames em videos longos. Usar `--max-frames`.
 - Preferir `--interval-seconds` em gravacoes longas para reduzir custo.
 - Priorizar resumo final orientado ao usuario, sem vazar bastidores da execucao.
 - Citar limites no resumo final:
@@ -127,14 +168,13 @@ python3 "$VSUM/transcribe_audio_openai.py" \
 
 ## API Compativel
 
-`summarize_frames_openai.py` aceita `--api-base` para endpoints compativeis com OpenAI Responses API.
-Exemplo:
+Modo por API continua disponivel apenas como fallback explicito (`SUMMARY_BACKEND=api`, `AUDIO_BACKEND=api`).
+Usar apenas quando o usuario pedir explicitamente.
 
 ```bash
-python3 "$VSUM/summarize_frames_openai.py" \
-  --manifest ./tmp-frames/frames_manifest.json \
-  --api-base https://api.openai.com/v1 \
-  --model gpt-4.1-mini
+AUDIO_BACKEND=api \
+SUMMARY_BACKEND=api \
+"$VSUM/run_video_summary.sh" ./video.mp4 ./output-api gpt-4.1-mini
 ```
 
 ## References

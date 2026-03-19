@@ -1,4 +1,4 @@
 interface:
   display_name: "VideoStand"
-  short_description: "Resume .mp4 por imagem + audio com timeline estimada."
-  default_prompt: "Analyze this .mp4 with sampled frames and audio transcript, then return a concise multimodal timeline with uncertainty notes."
+  short_description: "Resume video local/YouTube com analise local (frames + ASR local)."
+  default_prompt: "Analyze this local video or YouTube link with local-first workflow: extract frames, run local audio transcription, inspect keyframes directly, and return a concise multimodal timeline with uncertainty notes."

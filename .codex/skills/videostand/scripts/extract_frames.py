@@ -80,6 +80,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--max-frames must be > 0")
     if args.jpeg_quality < 2 or args.jpeg_quality > 31:
         raise ValueError("--jpeg-quality must be between 2 and 31")
+    if args.max_width is not None and args.max_width <= 0:
+        raise ValueError("--max-width must be > 0")
 
 
 def build_ffmpeg_command(args: argparse.Namespace, output_pattern: str) -> list[str]:
@@ -94,9 +96,14 @@ def build_ffmpeg_command(args: argparse.Namespace, output_pattern: str) -> list[
     ]
 
     if args.interval_seconds is not None:
-        vf = f"fps=1/{args.interval_seconds}"
+        sampling_filter = f"fps=1/{args.interval_seconds}"
     else:
-        vf = f"select=not(mod(n\\,{args.every_n_frames}))"
+        sampling_filter = f"select=not(mod(n\\,{args.every_n_frames}))"
+
+    filters = [sampling_filter]
+    if args.max_width is not None:
+        filters.append(f"scale=min(iw\\,{args.max_width}):-2")
+    vf = ",".join(filters)
 
     cmd.extend(["-vf", vf, "-vsync", "vfr", "-q:v", str(args.jpeg_quality)])
 
@@ -168,6 +175,10 @@ def build_manifest(
             "interval_seconds": args.interval_seconds,
             "approx_sample_rate_hz": approx_hz,
         },
+        "image_processing": {
+            "jpeg_quality": args.jpeg_quality,
+            "max_width": args.max_width,
+        },
         "video_info": {
             "fps_estimated": fps,
             "duration_s": duration,
@@ -214,8 +225,13 @@ def main() -> int:
     parser.add_argument(
         "--jpeg-quality",
         type=int,
-        default=3,
+        default=6,
         help="ffmpeg quality scale 2..31 (2=best, 31=worst)",
+    )
+    parser.add_argument(
+        "--max-width",
+        type=int,
+        help="Optional frame resize max width in pixels (keeps aspect ratio)",
     )
     args = parser.parse_args()
 

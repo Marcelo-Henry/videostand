@@ -1,6 +1,6 @@
 # Videostand
 
- - *Videostand* is a skill that let agents to understand .mp4 videos.
+ - *Videostand* is a skill that let agents understand .mp4 videos.
 
 ## Disponible in:
 ```bash
