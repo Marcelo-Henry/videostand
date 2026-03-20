@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -8,6 +8,8 @@ import { homedir } from 'node:os';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SOURCE_SKILL_DIR = resolve(__dirname, '..', 'assets', 'skills', 'videostand');
+const PACKAGE_JSON_PATH = resolve(__dirname, '..', 'package.json');
+const PACKAGE_VERSION = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf-8')).version;
 
 const TARGETS = {
   codex: '.codex',
@@ -24,6 +26,8 @@ function printHelp() {
   console.log('  videostand -g init <codex|kiro> [--force]');
   console.log('  videostand where <codex|kiro>');
   console.log('  videostand -g where <codex|kiro>');
+  console.log('  videostand --version');
+  console.log('  videostand -v');
   console.log('  videostand --help');
   console.log('');
   console.log('Commands:');
@@ -37,6 +41,10 @@ function printHelp() {
   console.log('Options:');
   console.log('  -g, --global  Use ~/.<target> instead of ./.<target>');
   console.log('  --force       Overwrite existing skill folder');
+}
+
+function printVersion() {
+  console.log(PACKAGE_VERSION);
 }
 
 function parseOptions(args) {
@@ -60,6 +68,11 @@ function parseOptions(args) {
 
     if (arg === '--help' || arg === '-h') {
       printHelp();
+      process.exit(0);
+    }
+
+    if (arg === '--version' || arg === '-v') {
+      printVersion();
       process.exit(0);
     }
 
@@ -111,6 +124,11 @@ function commandInit(options, target) {
 
 function main() {
   const args = process.argv.slice(2);
+
+  if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
+    printVersion();
+    return;
+  }
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     printHelp();
