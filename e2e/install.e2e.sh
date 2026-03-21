@@ -17,6 +17,23 @@ if [[ "$BIN_ALIAS_PATH" != "./bin/videostand.js" ]]; then
   exit 1
 fi
 
+# ── Doctor command smoke checks ──
+node "$ROOT_DIR/bin/videostand.js" doctor >/dev/null
+node "$ROOT_DIR/bin/videostand.js" doctor codex >/dev/null
+node "$ROOT_DIR/bin/videostand.js" doctor all --json >/dev/null
+
+WHERE_ALL_OUTPUT="$(node "$ROOT_DIR/bin/videostand.js" where all)"
+if [[ "$WHERE_ALL_OUTPUT" != *"codex:"* ]] || [[ "$WHERE_ALL_OUTPUT" != *"kiro:"* ]] || [[ "$WHERE_ALL_OUTPUT" != *"claude:"* ]]; then
+  echo "ERROR: where all output does not include all targets"
+  exit 1
+fi
+
+if [[ ! -x "$ROOT_DIR/assets/skills/videostand/scripts/doctor.sh" ]]; then
+  echo "ERROR: skill doctor script missing or not executable"
+  exit 1
+fi
+"$ROOT_DIR/assets/skills/videostand/scripts/doctor.sh" >/dev/null
+
 # ── Codex local install ──
 node "$ROOT_DIR/bin/videostand.js" init codex
 
@@ -109,6 +126,9 @@ if [[ ! -f "$GLOBAL_CLAUDE_SKILL" ]]; then
   echo "ERROR: global claude skill file not found at $GLOBAL_CLAUDE_SKILL"
   exit 1
 fi
+
+# ── Init all (global, force) ──
+node "$ROOT_DIR/bin/videostand.js" -g init all --force >/dev/null
 
 # ── Cross-target isolation ──
 # Installing claude should not have affected codex or kiro (already installed above)

@@ -9,6 +9,30 @@ Extrair frames representativos, transcrever audio localmente quando disponivel e
 
 Priorizar amostragem por tempo (`--interval-seconds`) em videos longos. Usar `--every-n-frames` quando for necessario granularidade por frame.
 
+## When to Use
+
+Use quando o pedido envolver:
+- resumo de gravacao de tela, aula, gameplay, call, entrevista ou demo em video;
+- timeline de eventos com timestamps aproximados;
+- extracao de insights visuais + contextuais a partir de audio transcrito.
+
+## When NOT to Use
+
+Nao use esta skill para:
+- edicao de video (cortes, overlay, color grading, montagem);
+- transcricao juridica com necessidade de precisao palavra-por-palavra;
+- inferencias de alto risco sem confirmacao de fonte primaria.
+
+## Output Contract
+
+Resposta final para o usuario deve seguir esta ordem:
+1. Resumo executivo (3 a 6 linhas)
+2. Timeline (bullets com tempo aproximado)
+3. Insights principais
+4. Limites de entendimento (o que nao foi possivel confirmar)
+
+Regra: manter foco em utilidade pratica e transparencia sobre limites.
+
 ## Quick Start
 
 Definir o caminho da skill (ajuste o target conforme o agent usado: `.codex`, `.kiro` ou `.claude`):
@@ -48,6 +72,29 @@ Saidas esperadas:
 - `output-video-summary/review_keyframes/*.jpg`
 - `output-video-summary/review_keyframes.json`
 - `output-video-summary/codex_review_pack.md`
+
+## Environment Doctor (recomendado)
+
+Antes de rodar analise em um ambiente novo, rode um preflight rapido:
+
+```bash
+"$VSUM/doctor.sh"
+```
+
+Modo estrito (exit code 1 se faltar dependencia obrigatoria):
+
+```bash
+"$VSUM/doctor.sh" --strict
+```
+
+Dependencias obrigatorias:
+- `python3`
+- `ffmpeg`
+- `ffprobe`
+
+Dependencias opcionais:
+- `yt-dlp` (necessario apenas para URL do YouTube)
+- `faster-whisper` (necessario para transcricao local de audio)
 
 ## Pre-Execution Planning (obrigatorio)
 

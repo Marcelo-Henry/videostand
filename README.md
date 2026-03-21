@@ -53,24 +53,39 @@ vs init codex
 ## Comandos
 
 ```bash
-videostand init <codex|kiro|claude> [--force]
-videostand -g init <codex|kiro|claude> [--force]
+videostand init <codex|kiro|claude|all> [--force]
+videostand -g init <codex|kiro|claude|all> [--force]
 
-videostand where <codex|kiro|claude>
-videostand -g where <codex|kiro|claude>
+videostand where <codex|kiro|claude|all>
+videostand -g where <codex|kiro|claude|all>
+videostand doctor [codex|kiro|claude|all] [--strict] [--json]
+videostand -g doctor [codex|kiro|claude|all] [--strict] [--json]
 
 videostand --help
 videostand --version
 videostand -v
 
 # Alias curto equivalente
-vs init <codex|kiro|claude> [--force]
-vs -g init <codex|kiro|claude> [--force]
-vs where <codex|kiro|claude>
-vs -g where <codex|kiro|claude>
+vs init <codex|kiro|claude|all> [--force]
+vs -g init <codex|kiro|claude|all> [--force]
+vs where <codex|kiro|claude|all>
+vs -g where <codex|kiro|claude|all>
+vs doctor [codex|kiro|claude|all] [--strict] [--json]
+vs -g doctor [codex|kiro|claude|all] [--strict] [--json]
 vs --help
 vs --version
 vs -v
+```
+
+## Preflight check
+
+Use o doctor para verificar dependencias antes de rodar a skill:
+
+```bash
+videostand doctor
+videostand doctor codex
+videostand -g doctor claude --strict
+videostand doctor all --json
 ```
 
 ## Como funciona
@@ -128,6 +143,10 @@ videostand -g init kiro
 # Instala global para Claude Code
 videostand -g init claude
 
+# Instala para todos os targets de uma vez
+videostand init all
+videostand -g init all --force
+
 # Força sobrescrita
 videostand init codex --force
 videostand -g init kiro --force
@@ -137,6 +156,10 @@ videostand init claude --force
 videostand where codex
 videostand -g where kiro
 videostand where claude
+videostand where all
+
+# Doctor machine-readable (CI/scripts)
+videostand doctor all --json
 ```
 
 ## Troubleshooting
