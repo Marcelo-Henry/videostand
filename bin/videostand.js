@@ -28,6 +28,7 @@ const TARGETS = {
   commandcode: '.commandcode',
   kode: '.kode',
   mux: '.mux',
+  openclaw: '.openclaw',
 };
 
 const VALID_TARGETS = Object.keys(TARGETS);
