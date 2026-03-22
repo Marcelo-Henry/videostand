@@ -16,44 +16,136 @@ const TARGETS = {
   codex: '.codex',
   kiro: '.kiro',
   claude: '.claude',
+  cline: '.cline',
+  cursor: '.cursor',
+  continue: '.continue',
+  roo: '.roo',
+  openhands: '.openhands',
+  qwen: '.qwen',
+  copilot: '.copilot',
+  junie: '.junie',
+  kilocode: '.kilocode',
+  commandcode: '.commandcode',
+  kode: '.kode',
+  mux: '.mux',
 };
 
 const VALID_TARGETS = Object.keys(TARGETS);
 const ALL_TARGETS_KEYWORD = 'all';
+const COLOR_ENABLED =
+  Boolean(process.stdout.isTTY) &&
+  process.env.NO_COLOR === undefined &&
+  process.env.TERM !== 'dumb';
+
+const ANSI = {
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  cyan: '\x1b[36m',
+};
+
+function colorize(text, ...styles) {
+  if (!COLOR_ENABLED || styles.length === 0) return text;
+  const prefix = styles.map((style) => ANSI[style]).join('');
+  return `${prefix}${text}${ANSI.reset}`;
+}
+
+function statusTag(type) {
+  const tags = {
+    ok: colorize('[OK]', 'bold', 'green'),
+    warn: colorize('[WARN]', 'bold', 'yellow'),
+    error: colorize('[ERROR]', 'bold', 'red'),
+    info: colorize('[INFO]', 'bold', 'blue'),
+    miss: colorize('[MISS]', 'bold', 'red'),
+    hint: colorize('[HINT]', 'bold', 'cyan'),
+  };
+  return tags[type] || '[INFO]';
+}
+
+function printHeader(title, subtitle = '') {
+  const width = process.stdout.columns || 80;
+  const rule = '-'.repeat(Math.max(24, Math.min(width, 80)));
+  console.log(colorize(title, 'bold', 'cyan'));
+  if (subtitle) {
+    console.log(colorize(subtitle, 'dim'));
+  }
+  console.log(colorize(rule, 'dim'));
+}
+
+function printKeyValueRows(rows) {
+  const keyWidth = rows.reduce((max, row) => Math.max(max, row[0].length), 0);
+  for (const [key, value] of rows) {
+    console.log(`  ${colorize(key.padEnd(keyWidth), 'bold')}  ${value}`);
+  }
+}
+
+function formatColumns(items) {
+  if (items.length === 0) return [];
+
+  const terminalWidth = process.stdout.columns || 80;
+  const maxItemLength = items.reduce((max, item) => Math.max(max, item.length), 0);
+  const columnWidth = maxItemLength + 3;
+  const columns = Math.max(1, Math.floor(Math.max(terminalWidth - 2, 1) / columnWidth));
+  const lines = [];
+
+  for (let i = 0; i < items.length; i += columns) {
+    const rowItems = items.slice(i, i + columns);
+    const line = rowItems
+      .map((item, idx) =>
+        idx === rowItems.length - 1 ? item : item.padEnd(columnWidth, ' ')
+      )
+      .join('');
+    lines.push(`  ${line}`);
+  }
+
+  return lines;
+}
 
 function printHelp() {
-  console.log('VideoStand CLI');
+  printHeader(`VideoStand CLI v${PACKAGE_VERSION}`, 'Instale e valide a skill em multiplos agentes');
   console.log('');
-  console.log('Alias:');
-  console.log('  vs  Same as videostand');
+  console.log(colorize('Usage', 'bold'));
+  printKeyValueRows([
+    ['videostand', '[--global|-g] <command> [target] [options]'],
+    ['vs', '[--global|-g] <command> [target] [options]'],
+  ]);
   console.log('');
-  console.log('Usage:');
-  console.log('  videostand init <codex|kiro|claude|all> [--force]');
-  console.log('  videostand -g init <codex|kiro|claude|all> [--force]');
-  console.log('  videostand where <codex|kiro|claude|all>');
-  console.log('  videostand -g where <codex|kiro|claude|all>');
-  console.log('  videostand doctor [codex|kiro|claude|all] [--strict] [--json]');
-  console.log('  videostand -g doctor [codex|kiro|claude|all] [--strict] [--json]');
-  console.log('  videostand --version');
-  console.log('  videostand -v');
-  console.log('  videostand --help');
+  console.log(colorize('Quick Examples', 'bold'));
+  console.log('  videostand init codex');
+  console.log('  videostand -g init codex');
+  console.log('  videostand init all --force');
+  console.log('  videostand doctor all --strict');
   console.log('');
-  console.log('Commands:');
-  console.log('  init   Install skill folder for the given target');
-  console.log('  where  Print installation path for the given target');
-  console.log('  doctor Check environment dependencies and skill installation');
+  console.log(colorize('Commands', 'bold'));
+  printKeyValueRows([
+    ['init <target|all>', 'Install skill folder for one/all targets'],
+    ['where <target|all>', 'Print installation path for one/all targets'],
+    ['doctor [target|all]', 'Check dependencies and installation status'],
+    ['--version, -v', 'Print CLI version'],
+    ['--help, -h', 'Show this help'],
+  ]);
   console.log('');
-  console.log('Targets:');
-  console.log('  codex   Use .codex directory');
-  console.log('  kiro    Use .kiro directory');
-  console.log('  claude  Use .claude directory');
-  console.log('  all     Apply command to all targets');
+  console.log(colorize(`Targets (${VALID_TARGETS.length})`, 'bold'));
+  const targetLines = VALID_TARGETS.map((t) => t);
+  for (const line of formatColumns(targetLines)) {
+    console.log(line);
+  }
   console.log('');
-  console.log('Options:');
-  console.log('  -g, --global  Use ~/.<target> instead of ./.<target>');
-  console.log('  --force       Overwrite existing skill folder');
-  console.log('  --strict      For doctor: exit 1 if required dependencies are missing');
-  console.log('  --json        For doctor: output machine-readable JSON');
+  console.log(colorize('Options', 'bold'));
+  printKeyValueRows([
+    ['-g, --global', 'Use ~/.<target> instead of ./.<target>'],
+    ['--force', 'Overwrite existing skill folder'],
+    ['--strict', 'With doctor: exit with code 1 if required deps are missing'],
+    ['--json', 'With doctor: output machine-readable JSON'],
+  ]);
+  console.log('');
+  console.log(colorize('Path Pattern', 'bold'));
+  console.log('  local:  ./.<target>/skills/videostand');
+  console.log('  global: ~/.<target>/skills/videostand');
 }
 
 function printVersion() {
@@ -101,7 +193,8 @@ function parseOptions(args) {
       process.exit(0);
     }
 
-    console.error(`Unknown option: ${arg}`);
+    console.error(`${statusTag('error')} Unknown option: ${arg}`);
+    console.error(`${statusTag('hint')} Run "videostand --help" for usage.`);
     process.exit(1);
   }
 
@@ -119,6 +212,11 @@ function getPaths(options, target) {
 
 function commandWhere(options, target) {
   const targets = target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+
+  if (target === ALL_TARGETS_KEYWORD && process.stdout.isTTY) {
+    printHeader('VideoStand Paths', options.global ? 'global scope (~)' : 'local scope (cwd)');
+  }
+
   for (const t of targets) {
     const { targetDir } = getPaths(options, t);
     if (target === ALL_TARGETS_KEYWORD) {
@@ -131,30 +229,43 @@ function commandWhere(options, target) {
 
 function commandInit(options, target) {
   if (!existsSync(SOURCE_SKILL_DIR)) {
-    console.error('Skill source not found in package assets.');
+    console.error(`${statusTag('error')} Skill source not found in package assets.`);
     process.exit(1);
   }
 
   const targets = target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
-  for (const t of targets) {
-    const { targetDir } = getPaths(options, t);
+  const targetData = targets.map((t) => ({
+    target: t,
+    ...getPaths(options, t),
+  }));
+
+  for (const data of targetData) {
+    if (existsSync(data.targetDir) && !options.force) {
+      console.error(`${statusTag('error')} Skill already exists for "${data.target}".`);
+      console.error(`  path: ${data.targetDir}`);
+      console.error(`${statusTag('hint')} Run again with --force to overwrite.`);
+      process.exit(1);
+    }
+  }
+
+  printHeader('VideoStand Install', options.global ? 'global scope (~)' : 'local scope (cwd)');
+
+  for (const data of targetData) {
+    const { target, targetDir } = data;
 
     if (existsSync(targetDir)) {
-      if (!options.force) {
-        console.error(`Skill already exists at: ${targetDir}`);
-        console.error('Run again with --force to overwrite.');
-        process.exit(1);
-      }
       rmSync(targetDir, { recursive: true, force: true });
+      console.log(`${statusTag('info')} Existing skill removed for "${target}" (--force).`);
     }
 
     mkdirSync(dirname(targetDir), { recursive: true });
     cpSync(SOURCE_SKILL_DIR, targetDir, { recursive: true });
 
-    const label = t.charAt(0).toUpperCase() + t.slice(1);
-    console.log(`VideoStand skill installed successfully for ${label}.`);
-    console.log(`Path: ${targetDir}`);
+    console.log(`${statusTag('ok')} ${target} -> ${targetDir}`);
   }
+
+  console.log('');
+  console.log(`${statusTag('ok')} Installation finished for ${targets.length} target(s).`);
 }
 
 function commandExists(cmd) {
@@ -237,48 +348,55 @@ function commandDoctor(options, target) {
     return;
   }
 
-  console.log('VideoStand Doctor');
+  printHeader(
+    'VideoStand Doctor',
+    options.global ? 'global scope (~)' : 'local scope (cwd)'
+  );
   console.log('');
-  console.log('Environment checks:');
+  console.log(colorize('Environment', 'bold'));
 
   for (const [cmd, ok] of Object.entries(envChecks.required)) {
-    console.log(`  ${ok ? '[ok]  ' : '[miss]'} ${cmd}`);
+    console.log(`  ${ok ? statusTag('ok') : statusTag('miss')} ${cmd}`);
   }
 
   for (const [cmd, ok] of Object.entries(envChecks.optional)) {
     console.log(
-      `  ${ok ? '[ok]  ' : '[warn]'} ${cmd} (optional, required only for YouTube input)`
+      `  ${ok ? statusTag('ok') : statusTag('warn')} ${cmd} (optional, required only for YouTube input)`
     );
   }
 
   if (envChecks.fasterWhisper) {
-    console.log('  [ok]   faster-whisper Python package');
+    console.log(`  ${statusTag('ok')} faster-whisper Python package`);
   } else {
-    console.log('  [warn] faster-whisper Python package (optional for visual-only summary)');
+    console.log(
+      `  ${statusTag('warn')} faster-whisper Python package (optional for visual-only summary)`
+    );
   }
 
   for (const t of targets) {
     const info = installChecks[t];
     console.log('');
-    console.log(`Installed skill check (${t}${options.global ? ' global' : ' local'}):`);
     console.log(
-      `  ${info.skillFile ? '[ok]  ' : '[miss]'} ${join(info.path, 'SKILL.md')}`
+      colorize(`Installation (${t}${options.global ? ' global' : ' local'})`, 'bold')
     );
     console.log(
-      `  ${info.runScript ? '[ok]  ' : '[miss]'} ${join(info.path, 'scripts', 'run_video_summary.sh')}`
+      `  ${info.skillFile ? statusTag('ok') : statusTag('miss')} ${join(info.path, 'SKILL.md')}`
+    );
+    console.log(
+      `  ${info.runScript ? statusTag('ok') : statusTag('miss')} ${join(info.path, 'scripts', 'run_video_summary.sh')}`
     );
   }
 
   console.log('');
   if (envChecks.missingRequired.length === 0) {
-    console.log('[ok] Doctor finished. Required dependencies are present.');
+    console.log(`${statusTag('ok')} Doctor finished. Required dependencies are present.`);
     return;
   }
 
   console.log(
-    `[warn] Missing required dependencies: ${envChecks.missingRequired.join(', ')}`
+    `${statusTag('warn')} Missing required dependencies: ${envChecks.missingRequired.join(', ')}`
   );
-  console.log('[hint] Install ffmpeg and python3 to run full local pipeline.');
+  console.log(`${statusTag('hint')} Install ffmpeg and python3 to run full local pipeline.`);
   if (options.strict) {
     process.exit(1);
   }
@@ -308,13 +426,15 @@ function main() {
   const target = positionals[1];
 
   if (command !== 'init' && command !== 'where' && command !== 'doctor') {
-    console.error(`Unknown command: ${command}`);
+    console.error(`${statusTag('error')} Unknown command: ${command}`);
     printHelp();
     process.exit(1);
   }
 
   if ((command === 'init' || command === 'where') && !target) {
-    console.error(`Missing target. Usage: videostand ${command} <codex|kiro|claude|all>`);
+    console.error(
+      `${statusTag('error')} Missing target. Usage: videostand ${command} <${VALID_TARGETS.join('|')}|all>`
+    );
     process.exit(1);
   }
 
@@ -324,7 +444,7 @@ function main() {
     target !== ALL_TARGETS_KEYWORD
   ) {
     console.error(
-      `Invalid target: ${target}. Must be one of: ${VALID_TARGETS.join(', ')}, ${ALL_TARGETS_KEYWORD}`
+      `${statusTag('error')} Invalid target: ${target}. Must be one of: ${VALID_TARGETS.join(', ')}, ${ALL_TARGETS_KEYWORD}`
     );
     process.exit(1);
   }

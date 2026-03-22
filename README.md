@@ -7,14 +7,14 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="MIT License"></a>
 </p>
 
-CLI para instalar a skill **VideoStand** no **Codex**, no **Kiro** e no **Claude Code**, com suporte a instalação **local** e **global**.
+CLI para instalar a skill **VideoStand** em 15 agents de IA — **Codex**, **Kiro**, **Claude Code**, **Cline**, **Cursor**, **Continue**, **Roo**, **OpenHands**, **Qwen**, **Copilot**, **Junie**, **Kilocode**, **CommandCode**, **Kode** e **Mux** — com suporte a instalação **local** e **global**.
 
 Alias rapido disponivel: `vs` (mesmo comportamento de `videostand`).
 
 ## O que este pacote faz
 
 1. Copia a skill `videostand` já pronta para a estrutura correta do agent.
-2. Permite escolher `codex`, `kiro` ou `claude` como target.
+2. Permite escolher entre 15 targets (`codex`, `kiro`, `claude`, `cline`, `cursor`, `continue`, `roo`, `openhands`, `qwen`, `copilot`, `junie`, `kilocode`, `commandcode`, `kode`, `mux`) ou `all`.
 3. Permite instalar no projeto atual (`./`) ou no home do usuário (`~/`) com `-g`.
 
 ## Instalação
@@ -53,28 +53,33 @@ vs init codex
 ## Comandos
 
 ```bash
-videostand init <codex|kiro|claude|all> [--force]
-videostand -g init <codex|kiro|claude|all> [--force]
+videostand init <target|all> [--force]
+videostand -g init <target|all> [--force]
 
-videostand where <codex|kiro|claude|all>
-videostand -g where <codex|kiro|claude|all>
-videostand doctor [codex|kiro|claude|all] [--strict] [--json]
-videostand -g doctor [codex|kiro|claude|all] [--strict] [--json]
+videostand where <target|all>
+videostand -g where <target|all>
+videostand doctor [target|all] [--strict] [--json]
+videostand -g doctor [target|all] [--strict] [--json]
 
 videostand --help
 videostand --version
 videostand -v
 
 # Alias curto equivalente
-vs init <codex|kiro|claude|all> [--force]
-vs -g init <codex|kiro|claude|all> [--force]
-vs where <codex|kiro|claude|all>
-vs -g where <codex|kiro|claude|all>
-vs doctor [codex|kiro|claude|all] [--strict] [--json]
-vs -g doctor [codex|kiro|claude|all] [--strict] [--json]
+vs init <target|all> [--force]
+vs -g init <target|all> [--force]
+vs where <target|all>
+vs -g where <target|all>
+vs doctor [target|all] [--strict] [--json]
+vs -g doctor [target|all] [--strict] [--json]
 vs --help
 vs --version
 vs -v
+
+# Targets disponíveis:
+# codex, kiro, claude, cline, cursor, continue, roo,
+# openhands, qwen, copilot, junie, kilocode,
+# commandcode, kode, mux
 ```
 
 ## Preflight check
@@ -91,7 +96,8 @@ videostand doctor all --json
 ## Como funciona
 
 ```text
-1) Você escolhe target: codex, kiro ou claude
+1) Você escolhe target: codex, kiro, claude, cline, cursor, continue, roo,
+   openhands, qwen, copilot, junie, kilocode, commandcode, kode ou mux
 2) Você escolhe modo:
    - sem -g: instala local no diretório atual
    - com -g: instala global no HOME
@@ -168,7 +174,7 @@ videostand doctor all --json
    - Use `--force` para sobrescrever.
 
 2. `Missing target...`
-   - Informe o target: `codex`, `kiro` ou `claude`.
+   - Informe o target: um dos 15 targets suportados (ex.: `codex`, `kiro`, `claude`, `cline`, etc.) ou `all`.
 
 3. `Unknown option...`
    - Rode `videostand --help` e use apenas as opções suportadas.
