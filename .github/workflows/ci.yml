@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+
+      - name: CLI smoke checks
+        run: |
+          node bin/videostand.js --version
+          node bin/videostand.js --help > /dev/null
+          node bin/videostand.js where all > /dev/null
+          node bin/videostand.js doctor all --json > /dev/null
+
+      - name: End-to-end install tests
+        run: npm run test:e2e
+
+      - name: Package dry-run
+        run: npm pack --dry-run
