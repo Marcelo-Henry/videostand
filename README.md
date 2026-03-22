@@ -1,187 +1,183 @@
-# VideoStand CLI
+<div align="center">
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/videostand-skill"><img src="https://img.shields.io/npm/v/videostand-skill?style=for-the-badge&logo=npm" alt="npm version"></a>
-  <a href="https://www.npmjs.com/package/videostand-skill"><img src="https://img.shields.io/npm/dm/videostand-skill?style=for-the-badge" alt="npm downloads"></a>
-  <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white" alt="Node >= 18">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="MIT License"></a>
+<img src="https://img.shields.io/badge/VideoStand-CLI-FF6B35?style=for-the-badge&labelColor=1a1a2e" alt="VideoStand CLI" />
+
+<br/>
+
+<p>
+  <a href="https://www.npmjs.com/package/videostand-skill"><img src="https://img.shields.io/npm/v/videostand-skill?style=for-the-badge&logo=npm&logoColor=white&color=CB3837" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/videostand-skill"><img src="https://img.shields.io/npm/dm/videostand-skill?style=for-the-badge&color=4A90D9" alt="npm downloads" /></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white" alt="Node >= 18" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="MIT License" /></a>
 </p>
 
-CLI para instalar a skill **VideoStand** em 16 agents de IA — **Codex**, **Kiro**, **Claude Code**, **Cline**, **Cursor**, **Continue**, **Roo**, **OpenHands**, **Qwen**, **Copilot**, **Junie**, **Kilocode**, **CommandCode**, **Kode**, **Mux** e **Openclaw** — com suporte a instalação **local** e **global**.
+<p><strong>Install the VideoStand skill across 16 AI agents with a single command.</strong></p>
 
-Alias rapido disponivel: `vs` (mesmo comportamento de `videostand`).
+</div>
 
-## O que este pacote faz
+---
 
-1. Copia a skill `videostand` já pronta para a estrutura correta do agent.
-2. Permite escolher entre 15 targets (`codex`, `kiro`, `claude`, `cline`, `cursor`, `continue`, `roo`, `openhands`, `qwen`, `copilot`, `junie`, `kilocode`, `commandcode`, `kode`, `mux`) ou `all`.
-3. Permite instalar no projeto atual (`./`) ou no home do usuário (`~/`) com `-g`.
+## ✨ Supported agents
 
-## Instalação
+| Agent          | Target        |
+| -------------- | ------------- |
+| OpenAI Codex   | `codex`       |
+| Kiro           | `kiro`        |
+| Claude Code    | `claude`      |
+| Cline          | `cline`       |
+| Cursor         | `cursor`      |
+| Continue       | `continue`    |
+| Roo            | `roo`         |
+| OpenHands      | `openhands`   |
+| Qwen           | `qwen`        |
+| GitHub Copilot | `copilot`     |
+| Junie          | `junie`       |
+| Kilocode       | `kilocode`    |
+| CommandCode    | `commandcode` |
+| Kode           | `kode`        |
+| Mux            | `mux`         |
+| Openclaw       | `openclaw`    |
 
-### Global
+---
 
+## 🚀 Installation
+
+**Global (recommended)**
 ```bash
 npm install -g videostand-skill
 ```
 
-### Sem instalar globalmente (npx)
-
+**Without installing (npx)**
 ```bash
 npx videostand-skill init codex
 ```
 
-## Quick Start
+---
+
+## ⚡ Quick Start
 
 ```bash
-# 1) Instalar skill local para Codex no projeto atual
+# Install for a specific agent (local)
 videostand init codex
 
-# 2) Instalar skill global para Codex
-videostand -g init codex
+# Install globally (HOME)
+videostand -g init claude
 
-# 3) Instalar skill local para Kiro
-videostand init kiro
+# Install for all agents at once
+videostand init all
 
-# 4) Instalar skill local para Claude Code
-videostand init claude
-
-# 5) Mesmo comando usando alias curto
+# Short alias — same behavior
 vs init codex
 ```
 
-## Comandos
+---
 
-```bash
-videostand init <target|all> [--force]
-videostand -g init <target|all> [--force]
+## 📖 Commands
 
-videostand where <target|all>
+```
+videostand init <target|all> [--force]      Install the skill
+videostand -g init <target|all> [--force]   Install globally
+
+videostand where <target|all>               Show installation path
 videostand -g where <target|all>
-videostand doctor [target|all] [--strict] [--json]
+
+videostand doctor [target|all] [--strict] [--json]   Check dependencies
 videostand -g doctor [target|all] [--strict] [--json]
 
 videostand --help
-videostand --version
-videostand -v
-
-# Alias curto equivalente
-vs init <target|all> [--force]
-vs -g init <target|all> [--force]
-vs where <target|all>
-vs -g where <target|all>
-vs doctor [target|all] [--strict] [--json]
-vs -g doctor [target|all] [--strict] [--json]
-vs --help
-vs --version
-vs -v
-
-# Targets disponíveis:
-# codex, kiro, claude, cline, cursor, continue, roo,
-# openhands, qwen, copilot, junie, kilocode,
-# commandcode, kode, mux
+videostand --version  |  videostand -v
 ```
 
-## Preflight check
+> **Alias:** all commands above work with `vs` instead of `videostand`.
 
-Use o doctor para verificar dependencias antes de rodar a skill:
+---
+
+## 📂 Where files are installed
+
+| Mode                     | Path                            |
+| ------------------------ | ------------------------------- |
+| **Local** (without `-g`) | `./<target>/skills/videostand`  |
+| **Global** (with `-g`)   | `~/.<target>/skills/videostand` |
+
+**Examples:**
+```
+./.claude/skills/videostand     ← local
+~/.claude/skills/videostand     ← global
+
+./.codex/skills/videostand      ← local
+~/.codex/skills/videostand      ← global
+```
+
+---
+
+## 🩺 Preflight check (doctor)
+
+Check dependencies before running the skill:
 
 ```bash
-videostand doctor
-videostand doctor codex
+videostand doctor              # check general environment
+videostand doctor codex        # check specific target
 videostand -g doctor claude --strict
-videostand doctor all --json
+videostand doctor all --json   # machine-readable output for CI
 ```
 
-## Como funciona
+---
 
-```text
-1) Você escolhe target: codex, kiro, claude, cline, cursor, continue, roo,
-   openhands, qwen, copilot, junie, kilocode, commandcode, kode ou mux
-2) Você escolhe modo:
-   - sem -g: instala local no diretório atual
-   - com -g: instala global no HOME
-3) O CLI copia os arquivos da skill para:
-   - ./.<target>/skills/videostand
-   - ~/.<target>/skills/videostand
-```
+## 🔧 Practical examples
 
-## Modos de instalação
-
-### Modo local (sem `-g`)
-
-Instala no diretório em que você executou o comando:
+<details>
+<summary><strong>Local installation</strong></summary>
 
 ```bash
-./.codex/skills/videostand
-./.kiro/skills/videostand
-./.claude/skills/videostand
-```
-
-### Modo global (`-g`)
-
-Instala no HOME do usuário:
-
-```bash
-~/.codex/skills/videostand
-~/.kiro/skills/videostand
-~/.claude/skills/videostand
-```
-
-## Exemplos práticos
-
-```bash
-# Instala local para Codex
 videostand init codex
-
-# Instala local para Kiro
 videostand init kiro
-
-# Instala local para Claude Code
 videostand init claude
-
-# Instala global para Codex
-videostand -g init codex
-
-# Instala global para Kiro
-videostand -g init kiro
-
-# Instala global para Claude Code
-videostand -g init claude
-
-# Instala para todos os targets de uma vez
 videostand init all
+```
+</details>
+
+<details>
+<summary><strong>Global installation</strong></summary>
+
+```bash
+videostand -g init codex
+videostand -g init kiro
+videostand -g init claude
 videostand -g init all --force
+```
+</details>
 
-# Força sobrescrita
-videostand init codex --force
-videostand -g init kiro --force
-videostand init claude --force
+<details>
+<summary><strong>Show paths</strong></summary>
 
-# Ver caminhos
+```bash
 videostand where codex
 videostand -g where kiro
-videostand where claude
 videostand where all
-
-# Doctor machine-readable (CI/scripts)
-videostand doctor all --json
 ```
+</details>
 
-## Troubleshooting
-
-1. `Skill already exists...`
-   - Use `--force` para sobrescrever.
-
-2. `Missing target...`
-   - Informe o target: um dos 15 targets suportados (ex.: `codex`, `kiro`, `claude`, `cline`, etc.) ou `all`.
-
-3. `Unknown option...`
-   - Rode `videostand --help` e use apenas as opções suportadas.
-
-## Desenvolvimento
+<details>
+<summary><strong>Force overwrite</strong></summary>
 
 ```bash
-# Teste e2e do instalador
-npm run test:e2e
+videostand init codex --force
+videostand -g init claude --force
 ```
+</details>
+
+---
+
+## ❗ Troubleshooting
+
+| Error                     | Solution                               |
+| ------------------------- | -------------------------------------- |
+| `Skill already exists...` | Use `--force` to overwrite             |
+| `Missing target...`       | Provide one of the 15 targets or `all` |
+| `Unknown option...`       | Run `videostand --help`                |
+
+---
+
+<div align="center">
+  <sub>Made with ❤️ by Marcelo and Codex</sub>
+</div>
