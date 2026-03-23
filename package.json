@@ -4,8 +4,8 @@
   "description": "CLI to install the VideoStand skill for +15 agents.",
   "type": "module",
   "bin": {
-    "videostand": "./bin/videostand.js",
-    "vs": "./bin/videostand.js"
+    "videostand": "bin/videostand.js",
+    "vs": "bin/videostand.js"
   },
   "files": [
     "bin",

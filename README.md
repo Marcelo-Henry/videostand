@@ -17,6 +17,15 @@
 
 ---
 
+## ✨ Novidades da v2.0.0
+
+- **Identificação de Momentos Virais**: A skill agora detecta automaticamente ganchos (hooks) e momentos de alto potencial de engajamento para redes sociais.
+- **Auto-Clipping Vertical (9:16)**: Novo script `clip_video.py` para extrair cortes diretamente para formato vertical (TikTok/Reels/Shorts) via `ffmpeg`.
+- **Deep-Dive de Alta Fidelidade**: Modo de processação denso com amostragem de frames (1:7) e áudio em alta definição (`large-v3`).
+- **Inteligência de Contexto**: O agente agora sabe diferenciar automaticamente gravações técnicas (bugs/logs) de conteúdos de entretenimento.
+
+---
+
 ## ✨ Supported agents
 
 | Agent          | Target        |
