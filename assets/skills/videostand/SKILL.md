@@ -14,7 +14,8 @@ Priorizar amostragem por tempo (`--interval-seconds`) em videos longos. Usar `--
 Use quando o pedido envolver:
 - resumo de gravacao de tela, aula, gameplay, call, entrevista ou demo em video;
 - timeline de eventos com timestamps aproximados;
-- extracao de insights visuais + contextuais a partir de audio transcrito.
+- extracao de insights visuais + contextuais a partir de audio transcrito;
+- identificação de momentos virais para cortes curtos (TikTok, Reels, Shorts).
 
 ## When NOT to Use
 
@@ -25,11 +26,12 @@ Nao use esta skill para:
 
 ## Output Contract
 
-Resposta final para o usuario deve seguir esta ordem:
+Resposta final para o usuario deve seguir esta ordem adaptativa:
 1. Resumo executivo (3 a 6 linhas)
 2. Timeline (bullets com tempo aproximado)
-3. Insights principais
-4. Limites de entendimento (o que nao foi possivel confirmar)
+3. Sugestões de Cortes Virais (timestamps e motivo) -> **Apenas se relevante/pedido**.
+4. Insights principais (ou Análise Técnica se for bug/demo)
+5. Limites de entendimento (o que nao foi possivel confirmar)
 
 Regra: manter foco em utilidade pratica e transparencia sobre limites.
 
@@ -221,6 +223,17 @@ python3 "$VSUM/transcribe_audio_local.py" \
   --language pt
 ```
 
+Extrair um corte específico (clipping):
+
+```bash
+python3 "$VSUM/clip_video.py" \
+  --input ./video.mp4 \
+  --output ./clip_viral_01.mp4 \
+  --start 00:01:20 \
+  --end 00:01:55 \
+  --vertical  # opcional: corta 9:16 para TikTok/Reels
+```
+
 Limpar arquivos temporarios e logs (pos-processamento):
 
 ```bash
@@ -273,6 +286,44 @@ AUDIO_BACKEND=api \
 SUMMARY_BACKEND=api \
 "$VSUM/run_video_summary.sh" ./video.mp4 ./output-api gpt-4.1-mini
 ```
+
+## Viral Video Strategy (New)
+
+Ao analisar o `codex_review_pack.md` (resultado de uma amostragem normal via `run_video_summary.sh`), o agent deve tentar identificar de 1 a 3 momentos com alto potencial de engajamento (viral). 
+
+Critérios para um bom corte:
+- **Hook Forte**: uma frase impactante ou ação visual nos primeiros 3 segundos.
+- **Valor/Punchline**: uma explicação clara, uma piada ou um desfecho épico.
+- **Duração Ideal**: entre 15 e 60 segundos.
+
+### Heavy Deep-Dive Workflow (Aviso Rigoroso)
+
+Se o usuário pedir para o agente **encontrar os melhores cortes virais possíveis**, a amostragem padrão (ex: 1 frame por segundo e `LOCAL_ASR_MODEL=small`) pode não ser suficiente para pegar reações e entonações perfeitas.
+
+Para uma extração cirúrgica, o agente tem permissão para rodar um **Heavy Deep-Dive**: um reprocessamento total com `EVERY_N_FRAMES=7` e `LOCAL_ASR_MODEL=large-v3`. 
+
+**Regra de Ouro (MANDATORY)**: Como esse processo é intensivo, consome muita CPU/RAM e demora muito mais, **você deve avisar o usuário sobre o tempo/peso e pedir permissão expressa** antes de executar o comando abaixo. Se a máquina do usuário não tiver RAM suficiente para o `large-v3`, o agente deve estar preparado para tentar `large-v2` ou `turbo` via fallback.
+
+Comando do Heavy Deep-Dive:
+
+```bash
+AUTO_SMART_SAMPLING=0 \
+EVERY_N_FRAMES=7 \
+MAX_FRAMES=500 \
+LOCAL_ASR_MODEL=large-v3 \
+STRICT_AUDIO=1 \
+MAX_KEYFRAMES_FOR_REVIEW=50 \
+"$VSUM/run_video_summary.sh" ./video.mp4 ./output-viral-deepdive
+```
+
+Após gerar o pacote, analise os timestamps finos e recomende os cortes. Se o usuário confirmar os timestamps, ofereça-se para gerar os arquivos finais com o `clip_video.py`.
+
+## Technical Context Guardrails (Bug Reports)
+
+Se o vídeo for claramente uma gravação de tela técnica (ex: console do browser aberto, IDE, erro de código, bug report ou demonstração de software), o agent deve:
+- **Omitir** sugestões de corte viral (seria inadequado).
+- **Focar** em identificar logs visuais, mensagens de erro e o fluxo exato que levou ao problema.
+- **Priorizar** a cronologia técnica dos eventos sobre o entretenimento.
 
 ## References
 

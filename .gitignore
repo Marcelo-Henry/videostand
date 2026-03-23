@@ -1,4 +1,21 @@
-.tmp/
+# Agents Folders
 .codex/
 .kiro/
+.claude/
+.cline/
+.cursor/
+.continue/
+.roo/
+.openhands/
+.qwen/
+.copilot/
+.junie/
+.kilocode/
+.commandcode/
+.kode/
+.mux/
+.openclaw/
+
+# Codex Instructions and Photos Folder
 AGENTS.md
+.tmp/
