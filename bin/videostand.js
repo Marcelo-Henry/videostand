@@ -13,7 +13,7 @@ const PACKAGE_JSON_PATH = resolve(__dirname, '..', 'package.json');
 const PACKAGE_VERSION = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf-8')).version;
 
 const TARGETS = {
-  antigravity: '.antigravity',
+  antigravity: '.agent',
   codex: '.codex',
   kiro: '.kiro',
   claude: '.claude',
