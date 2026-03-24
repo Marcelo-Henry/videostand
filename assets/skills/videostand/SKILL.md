@@ -37,7 +37,7 @@ Regra: manter foco em utilidade pratica e transparencia sobre limites.
 
 ## Quick Start
 
-Definir o caminho da skill (ajuste o target conforme o agent usado: `.codex`, `.kiro` ou `.claude`):
+Definir o caminho da skill (ajuste o target conforme o agent usado: `.codex`, `.kiro`, `.claude`...):
 
 ```bash
 # Codex / Kiro

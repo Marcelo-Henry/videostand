@@ -99,6 +99,43 @@ is_lte() {
   awk -v a="$lhs" -v b="$rhs" 'BEGIN {exit !(a <= b)}'
 }
 
+detect_hardware_profile() {
+  local os_type
+  os_type=$(uname -s)
+  local arch_type
+  arch_type=$(uname -m)
+  
+  local has_nvidia=0
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    if nvidia-smi >/dev/null 2>&1; then
+      has_nvidia=1
+    fi
+  fi
+  
+  local has_apple_silicon=0
+  if [ "$os_type" = "Darwin" ] && [ "$arch_type" = "arm64" ]; then
+    has_apple_silicon=1
+  fi
+  
+  local cpu_cores
+  if [ "$os_type" = "Darwin" ]; then
+    cpu_cores=$(sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
+  else
+    cpu_cores=$(nproc 2>/dev/null || echo 4)
+  fi
+  
+  local hw_tier="low"
+  if [ "$has_nvidia" -eq 1 ] || [ "$has_apple_silicon" -eq 1 ]; then
+    hw_tier="high"
+  elif [ "$cpu_cores" -ge 8 ]; then
+    hw_tier="medium"
+  else
+    hw_tier="low"
+  fi
+  
+  echo "$hw_tier"
+}
+
 configure_smart_sampling_defaults() {
   if [ "${AUTO_SMART_SAMPLING:-1}" = "0" ]; then
     return 0
@@ -126,9 +163,34 @@ configure_smart_sampling_defaults() {
     echo "[info] Smart sampling fallback INTERVAL_SECONDS=$INTERVAL_SECONDS."
   fi
 
+  local hw_tier
+  hw_tier="$(detect_hardware_profile)"
+  local smart_asr_default="tiny"
+  local smart_max_frames_default=180
+  local smart_max_keyframes_default=24
+
+  if [ "$hw_tier" = "high" ]; then
+    smart_asr_default="small"
+    smart_max_frames_default=360
+    smart_max_keyframes_default=48
+  elif [ "$hw_tier" = "medium" ]; then
+    smart_asr_default="base"
+    smart_max_frames_default=240
+    smart_max_keyframes_default=36
+  fi
+
+  if [ -z "${LOCAL_ASR_MODEL:-}" ]; then
+    LOCAL_ASR_MODEL="$smart_asr_default"
+    echo "[info] Smart sampling selecionou LOCAL_ASR_MODEL=$LOCAL_ASR_MODEL baseado em hardware ($hw_tier)."
+  fi
+  if [ -z "${MAX_KEYFRAMES_FOR_REVIEW:-}" ]; then
+    MAX_KEYFRAMES_FOR_REVIEW="$smart_max_keyframes_default"
+    echo "[info] Smart sampling selecionou MAX_KEYFRAMES_FOR_REVIEW=$MAX_KEYFRAMES_FOR_REVIEW baseado em hardware ($hw_tier)."
+  fi
+
   if [ -z "${MAX_FRAMES:-}" ]; then
-    MAX_FRAMES="${SMART_MAX_FRAMES:-180}"
-    echo "[info] Smart sampling selecionou MAX_FRAMES=$MAX_FRAMES."
+    MAX_FRAMES="${SMART_MAX_FRAMES:-$smart_max_frames_default}"
+    echo "[info] Smart sampling selecionou MAX_FRAMES=$MAX_FRAMES baseado em hardware ($hw_tier)."
   fi
   if [ -z "${BATCH_SIZE:-}" ]; then
     BATCH_SIZE="${SMART_BATCH_SIZE:-16}"
@@ -169,37 +231,19 @@ echo "[info] Starting parallel processing (Extraction + Transcription)..."
 # --- 1. Audio Transcription Setup ---
 TRANS_CMD=()
 if [ "${ENABLE_AUDIO_TRANSCRIPT:-1}" != "0" ]; then
-  AUDIO_BACKEND="${AUDIO_BACKEND:-local}"
-  if [ "$AUDIO_BACKEND" = "api" ]; then
-    TRANS_CMD=(
-      python3 "$SCRIPT_DIR/transcribe_audio_openai.py"
-      --input "$INPUT_VIDEO"
-      --output "$TRANSCRIPT_PATH"
-      --model "${AUDIO_MODEL:-gpt-4o-mini-transcribe}"
-      --language "${AUDIO_LANGUAGE:-pt}"
-      --temp-audio-format "${TEMP_AUDIO_FORMAT:-mp3}"
-    )
-    if [ -n "${API_BASE:-}" ]; then
-      TRANS_CMD+=(--api-base "$API_BASE")
-    fi
-    if [ -n "${ENV_FILE:-}" ]; then
-      TRANS_CMD+=(--env-file "$ENV_FILE")
-    fi
-  else
-    TRANS_CMD=(
-      python3 "$SCRIPT_DIR/transcribe_audio_local.py"
-      --input "$INPUT_VIDEO"
-      --output "$TRANSCRIPT_PATH"
-      --segments-json "$TRANSCRIPT_SEGMENTS_PATH"
-      --model-size "${LOCAL_ASR_MODEL:-small}"
-      --device "${LOCAL_ASR_DEVICE:-auto}"
-      --compute-type "${LOCAL_ASR_COMPUTE_TYPE:-int8}"
-      --beam-size "${LOCAL_ASR_BEAM_SIZE:-3}"
-      --language "${AUDIO_LANGUAGE:-pt}"
-    )
-    if [ "${LOCAL_ASR_VAD_FILTER:-0}" = "1" ]; then
-      TRANS_CMD+=(--vad-filter)
-    fi
+  TRANS_CMD=(
+    python3 "$SCRIPT_DIR/transcribe_audio_local.py"
+    --input "$INPUT_VIDEO"
+    --output "$TRANSCRIPT_PATH"
+    --segments-json "$TRANSCRIPT_SEGMENTS_PATH"
+    --model-size "${LOCAL_ASR_MODEL:-small}"
+    --device "${LOCAL_ASR_DEVICE:-auto}"
+    --compute-type "${LOCAL_ASR_COMPUTE_TYPE:-int8}"
+    --beam-size "${LOCAL_ASR_BEAM_SIZE:-3}"
+    --language "${AUDIO_LANGUAGE:-pt}"
+  )
+  if [ "${LOCAL_ASR_VAD_FILTER:-0}" = "1" ]; then
+    TRANS_CMD+=(--vad-filter)
   fi
 fi
 
@@ -237,48 +281,19 @@ wait "$PID_EXTRACT"
 echo "[ok] Frame extraction finished."
 
 
-SUMMARY_BACKEND="${SUMMARY_BACKEND:-codex-local}"
-if [ "$SUMMARY_BACKEND" = "api" ]; then
-  SUM_CMD=(
-    python3 "$SCRIPT_DIR/summarize_frames_openai.py"
-    --manifest "$MANIFEST_PATH"
-    --model "$MODEL"
-    --batch-size "${BATCH_SIZE:-12}"
-    --detail "${VISION_DETAIL:-low}"
-    --language "${SUMMARY_LANGUAGE:-pt-BR}"
-    --max-transcript-chars "${MAX_TRANSCRIPT_CHARS:-12000}"
-    --chunk-transcript-chars "${CHUNK_TRANSCRIPT_CHARS:-1200}"
-    --parallel-requests "${PARALLEL_REQUESTS:-2}"
-    --output "$SUMMARY_PATH"
-  )
-  if [ -n "${API_BASE:-}" ]; then
-    SUM_CMD+=(--api-base "$API_BASE")
-  fi
-  if [ -n "${ENV_FILE:-}" ]; then
-    SUM_CMD+=(--env-file "$ENV_FILE")
-  fi
-  if [ -s "$TRANSCRIPT_PATH" ]; then
-    SUM_CMD+=(--transcript-file "$TRANSCRIPT_PATH")
-  fi
-  echo "[info] Summarizing frames with API backend..."
-  "${SUM_CMD[@]}"
-  echo "[ok] Done."
-  echo "[ok] Summary: $SUMMARY_PATH"
-else
-  PACK_CMD=(
-    python3 "$SCRIPT_DIR/prepare_codex_video_review.py"
-    --manifest "$MANIFEST_PATH"
-    --output-dir "$OUTPUT_DIR"
-    --output "$REVIEW_PACK_PATH"
-    --max-keyframes "${MAX_KEYFRAMES_FOR_REVIEW:-24}"
-    --max-transcript-chars "${MAX_TRANSCRIPT_CHARS:-12000}"
-  )
-  if [ -s "$TRANSCRIPT_PATH" ]; then
-    PACK_CMD+=(--transcript-file "$TRANSCRIPT_PATH")
-  fi
-
-  echo "[info] Preparing local review pack for Codex..."
-  "${PACK_CMD[@]}"
-  echo "[ok] Done."
-  echo "[ok] Review pack: $REVIEW_PACK_PATH"
+PACK_CMD=(
+  python3 "$SCRIPT_DIR/prepare_codex_video_review.py"
+  --manifest "$MANIFEST_PATH"
+  --output-dir "$OUTPUT_DIR"
+  --output "$REVIEW_PACK_PATH"
+  --max-keyframes "${MAX_KEYFRAMES_FOR_REVIEW:-24}"
+  --max-transcript-chars "${MAX_TRANSCRIPT_CHARS:-12000}"
+)
+if [ -s "$TRANSCRIPT_PATH" ]; then
+  PACK_CMD+=(--transcript-file "$TRANSCRIPT_PATH")
 fi
+
+echo "[info] Preparing local review pack for Codex..."
+"${PACK_CMD[@]}"
+echo "[ok] Done."
+echo "[ok] Review pack: $REVIEW_PACK_PATH"
