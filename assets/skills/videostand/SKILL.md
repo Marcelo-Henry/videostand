@@ -289,34 +289,23 @@ SUMMARY_BACKEND=api \
 
 ## Viral Video Strategy (New)
 
-Ao analisar o `codex_review_pack.md` (resultado de uma amostragem normal via `run_video_summary.sh`), o agent deve tentar identificar de 1 a 3 momentos com alto potencial de engajamento (viral). 
+Ao analisar o `codex_review_pack.md`, o agent deve tentar identificar de 1 a 3 momentos com alto potencial de engajamento (viral), tudo com base na amostragem inteligente padrão (não é necessário reprocessamento).
 
 Critérios para um bom corte:
 - **Hook Forte**: uma frase impactante ou ação visual nos primeiros 3 segundos.
 - **Valor/Punchline**: uma explicação clara, uma piada ou um desfecho épico.
 - **Duração Ideal**: entre 15 e 60 segundos.
 
-### Heavy Deep-Dive Workflow (Aviso Rigoroso)
+### Fluxo Mandatório de Cortes Virais
 
-Se o usuário pedir para o agente **encontrar os melhores cortes virais possíveis**, a amostragem padrão (ex: 1 frame por segundo e `LOCAL_ASR_MODEL=small`) pode não ser suficiente para pegar reações e entonações perfeitas.
+Se o usuário pedir para gerar cortes virais ou os melhores momentos, o agente **NÃO DEVE** executar o corte imediatamente. O agente deve seguir esta ordem restrita:
 
-Para uma extração cirúrgica, o agente tem permissão para rodar um **Heavy Deep-Dive**: um reprocessamento total com `EVERY_N_FRAMES=7` e `LOCAL_ASR_MODEL=large-v3`. 
-
-**Regra de Ouro (MANDATORY)**: Como esse processo é intensivo, consome muita CPU/RAM e demora muito mais, **você deve avisar o usuário sobre o tempo/peso e pedir permissão expressa** antes de executar o comando abaixo. Se a máquina do usuário não tiver RAM suficiente para o `large-v3`, o agente deve estar preparado para tentar `large-v2` ou `turbo` via fallback.
-
-Comando do Heavy Deep-Dive:
-
-```bash
-AUTO_SMART_SAMPLING=0 \
-EVERY_N_FRAMES=7 \
-MAX_FRAMES=500 \
-LOCAL_ASR_MODEL=large-v3 \
-STRICT_AUDIO=1 \
-MAX_KEYFRAMES_FOR_REVIEW=50 \
-"$VSUM/run_video_summary.sh" ./video.mp4 ./output-viral-deepdive
-```
-
-Após gerar o pacote, analise os timestamps finos e recomende os cortes. Se o usuário confirmar os timestamps, ofereça-se para gerar os arquivos finais com o `clip_video.py`.
+1. **Apresentar a Proposta**: Mostrar ao usuário uma lista enumerada com os recortes identificados. Para cada corte, inclua:
+   - **Período**: (Ex: `00:01:20 a 00:01:55`)
+   - **Fala do Trecho (Transcript)**: Coloque a(s) frase(s) de impacto.
+   - **Por que é um bom corte**: Explique o "hook" ou valor.
+2. **Pedir Confirmação**: O agente deve perguntar: "Deseja que eu proceda com o corte e formatação vertical desses trechos? Aviso que este processo de recorte pode ser **demorado**, pois envolverá renderização de vídeo."
+3. **Execução (Apenas pós-sim)**: Somente se o usuário confirmar, o agente pode utilizar o script `clip_video.py` com a opção `--vertical` (que já aplica um fundo borrado 1080p30).
 
 ## Technical Context Guardrails (Bug Reports)
 

@@ -16,6 +16,7 @@
 .mux/
 .openclaw/
 
-# Codex Instructions and Photos Folder
+# Agents Instructions and Photos Folder
 AGENTS.md
 .tmp/
+.agent/

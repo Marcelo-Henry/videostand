@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument("--start", required=True, help="Start time (HH:MM:SS or seconds)")
     parser.add_argument("--end", help="End time (HH:MM:SS or seconds)")
     parser.add_argument("--duration", help="Duration of the clip (seconds)")
-    parser.add_argument("--vertical", action="store_true", help="Crop to vertical 9:16 aspect ratio (center-crop)")
+    parser.add_argument("--vertical", action="store_true", help="Format to vertical 9:16 (1080x1920 30fps) with blurred background")
     return parser.parse_args()
 
 def get_video_info(input_path):
@@ -51,20 +51,26 @@ def main():
         if info:
             w, h = int(info["width"]), int(info["height"])
             # Target 9:16 based on height
-            target_w = int(h * 9 / 16)
-            if target_w > w:
-                target_w = w
-                target_h = int(w * 16 / 9)
-            else:
-                target_h = h
+            # Complex filter:
+            # 1. Scale background to cover 1080x1920 (increase) and crop exact size, then blur it.
+            # 2. Scale foreground to fit within 1080x1920 (decrease).
+            # 3. Overlay foreground over background.
+            filter_complex = (
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:20[bg];"
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[fg];"
+                "[bg][fg]overlay=(W-w)/2:(H-h)/2[outv]"
+            )
+            cmd.extend(["-filter_complex", filter_complex, "-map", "[outv]", "-map", "0:a?"])
             
-            # Crop to target_w:target_h center
-            crop_filter = f"crop={target_w}:{target_h}:(in_w-{target_w})/2:(in_h-{target_h})/2"
-            cmd.extend(["-vf", crop_filter])
-            # Re-encoding is required for filtering
-            cmd.extend(["-c:v", "libx264", "-crf", "23", "-c:a", "aac", "-b:a", "128k"])
+            # Force 30fps and re-encode
+            cmd.extend([
+                "-r", "30",
+                "-c:v", "libx264", "-crf", "23", 
+                "-c:a", "aac", "-b:a", "128k"
+            ])
         else:
             print("Warning: Could not determine video dimensions, skipping vertical crop.", file=sys.stderr)
+            # Still copy streams but warn
             cmd.extend(["-c", "copy"])
     else:
         # If no filtering, copy streams for speed
