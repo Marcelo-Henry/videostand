@@ -126,6 +126,8 @@ function printHelp() {
   printKeyValueRows([
     ['init <target|all>', 'Install skill folder for one/all targets'],
     ['remove <target|all>', 'Remove skill folder from one/all targets'],
+    ['status [target|all]', 'Show installation and sync status'],
+    ['sync [target|all]', 'Update installed skills to match package assets'],
     ['where <target|all>', 'Print installation path for one/all targets'],
     ['doctor [target|all]', 'Check dependencies and installation status'],
     ['--version, -v', 'Print CLI version'],
@@ -450,6 +452,112 @@ function commandDoctor(options, target) {
   }
 }
 
+function commandStatus(options, target) {
+  const targets = !target || target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const results = [];
+
+  for (const t of targets) {
+    const { targetDir, targetRoot } = getPaths(options, t);
+    const isInstalled = existsSync(targetDir);
+    const hasAgentDir = existsSync(targetRoot);
+
+    if (!isInstalled) {
+      if (target !== ALL_TARGETS_KEYWORD || hasAgentDir) {
+        results.push({ target: t, status: 'MISSING', path: targetDir });
+      }
+      continue;
+    }
+
+    // Check if files are in sync
+    const filesToCompare = ['SKILL.md', 'scripts/run_video_summary.sh', 'scripts/extract_frames.py'];
+    let isInSync = true;
+    for (const file of filesToCompare) {
+      const src = join(SOURCE_SKILL_DIR, file);
+      const dest = join(targetDir, file);
+      if (!existsSync(dest)) {
+        isInSync = false;
+        break;
+      }
+      try {
+        const srcContent = readFileSync(src, 'utf-8');
+        const destContent = readFileSync(dest, 'utf-8');
+        if (srcContent !== destContent) {
+          isInSync = false;
+          break;
+        }
+      } catch (err) {
+        isInSync = false;
+        break;
+      }
+    }
+
+    results.push({
+      target: t,
+      status: isInSync ? 'OK' : 'OUTDATED',
+      path: targetDir,
+    });
+  }
+
+  printHeader(
+    'VideoStand Status',
+    options.global ? 'global scope (~)' : 'local scope (cwd)'
+  );
+
+  if (results.length === 0) {
+    console.log(`  ${statusTag('info')} No targets found in this scope.`);
+    return;
+  }
+
+  const rows = results.map((r) => {
+    let tag = '';
+    if (r.status === 'OK') tag = statusTag('ok');
+    else if (r.status === 'OUTDATED') tag = colorize('[UPDATE]', 'bold', 'yellow');
+    else tag = colorize('[MISSING]', 'dim');
+
+    return [r.target, `${tag} ${colorize(r.path, 'dim')}`];
+  });
+
+  printKeyValueRows(rows);
+  console.log('');
+  
+  const outdated = results.filter((r) => r.status === 'OUTDATED');
+  if (outdated.length > 0) {
+    console.log(`${statusTag('hint')} ${outdated.length} target(s) are outdated.`);
+    console.log(`  Run "videostand sync all" to update all targets.`);
+  } else {
+    console.log(`${statusTag('ok')} All installed targets are up-to-date.`);
+  }
+}
+
+function commandSync(options, target) {
+  const targets = !target || target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const installedTargets = targets.filter((t) => {
+    const { targetDir } = getPaths(options, t);
+    return existsSync(targetDir);
+  });
+
+  if (installedTargets.length === 0) {
+    console.log(`${statusTag('info')} No installed skills found to sync.`);
+    return;
+  }
+
+  console.log(`${statusTag('info')} Syncing ${installedTargets.length} target(s)...`);
+  
+  // Reuse commandInit but with force: true
+  const syncOptions = { ...options, force: true };
+  const targetToInit = target === ALL_TARGETS_KEYWORD ? ALL_TARGET_KEYWORD_DUMMY_BUT_STILL_USE_LIST : 'specific';
+  
+  // It's cleaner to just loop and call the installation logic or call commandInit.
+  // We'll call commandInit for each if it's not 'all'.
+  if (target === ALL_TARGETS_KEYWORD) {
+    commandInit(syncOptions, ALL_TARGETS_KEYWORD);
+  } else {
+    commandInit(syncOptions, target);
+  }
+}
+
+const ALL_TARGET_KEYWORD_DUMMY_BUT_STILL_USE_LIST = 'all';
+
 function commandRemove(options, target) {
   const targets = target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
   let removedCount = 0;
@@ -496,13 +604,23 @@ function main() {
   const command = positionals[0];
   const target = positionals[1];
 
-  if (command !== 'init' && command !== 'where' && command !== 'doctor' && command !== 'remove') {
+  if (
+    command !== 'init' &&
+    command !== 'where' &&
+    command !== 'doctor' &&
+    command !== 'remove' &&
+    command !== 'status' &&
+    command !== 'sync'
+  ) {
     console.error(`${statusTag('error')} Unknown command: ${command}`);
     printHelp();
     process.exit(1);
   }
 
-  if ((command === 'init' || command === 'where' || command === 'remove') && !target) {
+  if (
+    (command === 'init' || command === 'where' || command === 'remove') &&
+    !target
+  ) {
     console.error(
       `${statusTag('error')} Missing target. Usage: videostand ${command} <${VALID_TARGETS.join('|')}|all>`
     );
@@ -533,8 +651,13 @@ function main() {
     return;
   }
 
-  if (command === 'doctor') {
-    commandDoctor(options, target);
+  if (command === 'status') {
+    commandStatus(options, target);
+    return;
+  }
+
+  if (command === 'sync') {
+    commandSync(options, target);
     return;
   }
 

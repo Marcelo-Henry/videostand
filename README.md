@@ -82,6 +82,9 @@ videostand -g init <target|all> [--force]   Install globally
 videostand remove <target|all>              Remove the skill
 videostand -g remove <target|all>           Remove globally
 
+videostand status [target|all]              Show installation and sync status
+videostand sync [target|all]                Update installed skills
+
 videostand where <target|all>               Show installation path
 videostand -g where <target|all>
 
@@ -168,6 +171,17 @@ videostand where all
 ```bash
 videostand init codex --force
 videostand -g init claude --force
+```
+</details>
+
+<details>
+<summary><strong>Check status & Sync</strong></summary>
+
+```bash
+videostand status all
+videostand status codex
+videostand sync all
+videostand -g sync claude
 ```
 </details>
 
