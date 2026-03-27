@@ -28,12 +28,21 @@ def parse_args():
 
     parser.add_argument(
         "--person-position",
-        choices=["center", "left", "right"],
-        default="center",
-        help="Where the person sits in the original frame (default: center). "
-             "Only used with --person-crop.",
+        type=int,
+        metavar="PIXEL",
+        help=(
+            "Manual horizontal crop anchor for --person-crop. "
+            "Format: --person-position <pixel>. "
+            "PIXEL is always the left edge of the crop in the source frame."
+        ),
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.person_position is not None:
+        if args.person_position < 0:
+            parser.error("--person-position <pixel> must be >= 0.")
+
+    return args
 
 
 def get_video_info(input_path):
@@ -54,19 +63,20 @@ def _build_person_crop_filter(w, h, position):
 
     Strategy: take a vertical slice from the original frame whose aspect
     ratio is 9:16. The slice width is ``h * 9 / 16`` (capped at ``w``).
-    The horizontal offset depends on *position*:
-      - center: middle of the frame
-      - left:   left-biased (1/4 from left edge)
-      - right:  right-biased (1/4 from right edge)
+    If *position* is provided, PIXEL is used as the left edge of the crop.
+    If *position* is omitted, crop is centered.
+    PIXEL is always interpreted in the source frame coordinate system,
+    where x=0 is the left edge.
     The result is then scaled to exactly 1080x1920.
     """
     crop_w = min(int(h * 9 / 16), w)
-    if position == "left":
-        x_val = min(w // 4, w - crop_w)
-    elif position == "right":
-        x_val = max(w - (w // 4) - crop_w, 0)
-    else:
+    max_x = max(w - crop_w, 0)
+
+    if position is None:
         x_val = (w - crop_w) // 2
+    else:
+        x_val = max(0, min(position, max_x))
+
     return f"crop={crop_w}:{h}:{x_val}:0,scale=1080:1920"
 
 

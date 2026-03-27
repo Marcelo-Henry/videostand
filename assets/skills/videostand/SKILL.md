@@ -204,6 +204,8 @@ Ao ler os 25 frames, o agent deve responder mentalmente:
 1. **Há uma pessoa visível na maioria dos frames?** (>80% dos frames = sim)
 2. **A pessoa está consistentemente na mesma posição horizontal?**
    - Centro: a pessoa ocupa a faixa central do frame
+   - Centro-esquerda: entre o centro e a esquerda
+   - Centro-direita: entre o centro e a direita
    - Esquerda: a pessoa está consistentemente à esquerda
    - Direita: a pessoa está consistentemente à direita
 3. **A posição é estável ao longo de todas as 5 regiões?**
@@ -216,10 +218,17 @@ Com base na análise:
 
 | Resultado da Análise                          | Modo Recomendado                                                           | Flag `clip_video.py`                     |
 | --------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------- |
-| Pessoa fixa no centro                         | **Person Crop** — crop apertado na pessoa, sem blur, ela ocupa a tela toda | `--person-crop --person-position center` |
-| Pessoa fixa à esquerda                        | **Person Crop** ajustado à esquerda                                        | `--person-crop --person-position left`   |
-| Pessoa fixa à direita                         | **Person Crop** ajustado à direita                                         | `--person-crop --person-position right`  |
+| Pessoa fixa no centro                         | **Person Crop** — crop apertado na pessoa, sem blur, ela ocupa a tela toda | `--person-crop --person-position <pixel>` |
+| Pessoa fixa entre centro e esquerda           | **Person Crop** ajustado para centro-esquerda                              | `--person-crop --person-position <pixel>` |
+| Pessoa fixa à esquerda                        | **Person Crop** ajustado à esquerda                                        | `--person-crop --person-position <pixel>` |
+| Pessoa fixa entre centro e direita            | **Person Crop** ajustado para centro-direita                               | `--person-crop --person-position <pixel>` |
+| Pessoa fixa à direita                         | **Person Crop** ajustado à direita                                         | `--person-crop --person-position <pixel>` |
 | Pessoa se move / sem pessoa / câmera dinâmica | **Modo Padrão** — vídeo horizontal centralizado com fundo borrado          | `--vertical`                             |
+
+Formato dinâmico obrigatório para person-crop:
+- `--person-position <pixel>`
+- `<pixel>` é a coordenada X da borda esquerda do crop no frame original (0 = borda esquerda).
+- O script faz clamp automático para respeitar os limites horizontais do vídeo.
 
 ### Apresentação ao Usuário
 
@@ -294,7 +303,7 @@ python3 "$VSUM/clip_video.py" \
   --start 00:01:20 \
   --end 00:01:55 \
   --person-crop \
-  --person-position center  # center | left | right
+  --person-position 432  # <pixel> = borda esquerda do crop; 0 = borda esquerda do frame
 ```
 
 Limpar arquivos temporarios e logs (pos-processamento):
@@ -426,7 +435,12 @@ Se o usuário pedir para gerar cortes virais ou os melhores momentos, o agente *
    - **Tags**: `[RACIOCÍNIO COMPLETO]`, `[FALA FORTE]`, `[HOOK VIRAL]` — um corte pode ter múltiplas tags.
    - **Modo sugerido**: person-crop ou vertical (com base na framing analysis).
 3. **Pedir Confirmação**: O agente deve perguntar: "Deseja que eu proceda com o corte e formatação vertical desses trechos? Aviso que este processo de recorte pode ser **demorado**, pois envolverá renderização de vídeo."
-4. **Execução (Apenas pós-sim)**: Somente se o usuário confirmar, o agente pode utilizar o script `clip_video.py` com `--person-crop` ou `--vertical` conforme sugerido.
+4. **Validação Rápida de Áudio (Pré-Render Obrigatória)**: Para evitar renderizar um vídeo inteiro à toa, antes de rodar o `clip_video.py`, o agente DEVE extrair e transcrever apenas um trecho rápido de áudio focando nos primeiros e nos últimos 5 segundos dos timestamps exatos definidos.
+   - O agente pode extrair esse áudio usando ffmpeg (ex: separando apenas o áudio com `-ss` e `-to`).
+   - Se na transcrição for detectada uma quebra de frase ou de raciocínio (sílaba pendente, corte duro):
+   - O agente **aumentará ou diminuirá milissegundos ou segundos** (`--start` ou `--end`, usando decimais, ex: `00:01:20.500`) e testará o áudio novamente até confirmar que o recuo/avanço cobre a fala inteira de forma limpa.
+   - O agente faz esse ajuste fino no próprio corte atual, em background, sem propor outro recorte distinto e sem re-perguntar ao usuário.
+5. **Execução Final (Renderização da Imagem)**: Somente APÓS os tempos de áudio serem perfeitamente validados o agente utilizará o script longo `clip_video.py` com `--person-crop` ou `--vertical` aplicando os timestamps corrigidos.
 
 ### Qualidade Mínima por Corte
 
