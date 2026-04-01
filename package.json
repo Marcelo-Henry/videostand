@@ -1,6 +1,6 @@
 {
   "name": "@marcelo-henry/videostand-skill",
-  "version": "2.4.4",
+  "version": "2.4.5",
   "description": "CLI to install the VideoStand skill for +15 agents.",
   "type": "module",
   "bin": {
