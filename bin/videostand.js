@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -519,7 +519,7 @@ function commandStatus(options, target) {
 
   printKeyValueRows(rows);
   console.log('');
-  
+
   const outdated = results.filter((r) => r.status === 'OUTDATED');
   if (outdated.length > 0) {
     console.log(`${statusTag('hint')} ${outdated.length} target(s) are outdated.`);
@@ -542,11 +542,11 @@ function commandSync(options, target) {
   }
 
   console.log(`${statusTag('info')} Syncing ${installedTargets.length} target(s)...`);
-  
+
   // Reuse commandInit but with force: true
   const syncOptions = { ...options, force: true };
   const targetToInit = target === ALL_TARGETS_KEYWORD ? ALL_TARGET_KEYWORD_DUMMY_BUT_STILL_USE_LIST : 'specific';
-  
+
   // It's cleaner to just loop and call the installation logic or call commandInit.
   // We'll call commandInit for each if it's not 'all'.
   if (target === ALL_TARGETS_KEYWORD) {
@@ -581,7 +581,66 @@ function commandRemove(options, target) {
   console.log(`${statusTag('ok')} Removal finished. Removed from ${removedCount} target(s).`);
 }
 
-function main() {
+function isNewer(latest, current) {
+  const l = latest.split('.').map(Number);
+  const c = current.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (l[i] > (c[i] || 0)) return true;
+    if (l[i] < (c[i] || 0)) return false;
+  }
+  return false;
+}
+
+async function checkUpdate() {
+  const cachePath = join(homedir(), '.videostand', 'version-cache.json');
+  let cache = { latestVersion: PACKAGE_VERSION, lastCheck: 0 };
+
+  if (existsSync(cachePath)) {
+    try {
+      cache = JSON.parse(readFileSync(cachePath, 'utf-8'));
+    } catch (e) {
+      // Invalid cache, reset
+    }
+  }
+
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  if (now - cache.lastCheck > ONE_DAY) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1200);
+      const res = await fetch(
+        'https://registry.npmjs.org/@marcelo-henry/videostand-skill/latest',
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json();
+        cache.latestVersion = data.version;
+        cache.lastCheck = now;
+        mkdirSync(dirname(cachePath), { recursive: true });
+        writeFileSync(cachePath, JSON.stringify(cache));
+      }
+    } catch (e) {
+      // Silently ignore network errors
+    }
+  }
+
+  if (isNewer(cache.latestVersion, PACKAGE_VERSION)) {
+    console.log(
+      colorize(
+        `WARNING: There's a new update on VideoStand! Please install using 'npm i -g videostand-skill'`,
+        'bold',
+        'yellow'
+      )
+    );
+    console.log('');
+  }
+}
+
+async function main() {
+  await checkUpdate();
   const args = process.argv.slice(2);
 
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
