@@ -1,5 +1,5 @@
 {
-  "name": "@marcelo-henry/videostand-skill",
+  "name": "videostand-skill",
   "version": "2.4.7",
   "description": "CLI to install the VideoStand skill for +15 agents.",
   "type": "module",
@@ -13,10 +13,11 @@
     "README.md",
     "LICENSE"
   ],
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+  "scripts": {
+    "pub:npm": "npm publish",
+    "pub:gh": "npm pkg set name=@marcelo-henry/videostand-skill && npm publish --registry=https://npm.pkg.github.com && npm pkg set name=videostand-skill",
+    "ship": "npm run pub:npm && npm run pub:gh"
   },
-  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Marcelo-Henry/videostand.git"
