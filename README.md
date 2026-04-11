@@ -13,6 +13,10 @@
 
 <p><strong>Install the VideoStand skill across 17 AI agents with a single command.</strong></p>
 
+> **A Note on Versioning & V3 Maturity** 
+> 
+> First and foremost, I would like to apologize for the inconsistent version numbering used in previous releases. As VideoStand has evolved from a small utility into a standalone video intelligence tool, **v3.0.0** marks our official commitment to the **Semantic Versioning (SemVer)** standard. This major milestone serves as a fresh start and the new baseline for reliability, predictability, and performance. Thank you for your patience and for being part of this growth.
+
 </div>
 
 ---
@@ -21,7 +25,7 @@
 
 | Agent          | Target        |
 | -------------- | ------------- |
-| Antigravity    | `antigravity` |
+| Antigravity    | `agent`       |
 | OpenAI Codex   | `codex`       |
 | Kiro           | `kiro`        |
 | Claude Code    | `claude`      |

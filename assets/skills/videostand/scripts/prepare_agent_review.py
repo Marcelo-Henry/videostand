@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a local review pack for Codex to summarize video from keyframes + transcript."""
+"""Prepare a local review pack for an AI Agent to summarize video from keyframes + transcript."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create a Codex review pack from frame manifest and optional transcript."
+        description="Create an Agent review pack from frame manifest and optional transcript."
     )
     parser.add_argument("--manifest", required=True, type=Path, help="Path to frames_manifest.json")
     parser.add_argument("--output-dir", required=True, type=Path, help="Output directory")
@@ -96,7 +96,7 @@ def main() -> int:
     keyframes_dir = output_dir / "review_keyframes"
     keyframes_dir.mkdir(parents=True, exist_ok=True)
 
-    output_path = args.output or (output_dir / "codex_review_pack.md")
+    output_path = args.output or (output_dir / "agent_review_pack.md")
     keyframes_json = output_dir / "review_keyframes.json"
 
     picked_indices = pick_uniform_indices(len(frames), args.max_keyframes)
@@ -128,7 +128,7 @@ def main() -> int:
     transcript_text = read_transcript(args.transcript_file, args.max_transcript_chars)
 
     lines: list[str] = []
-    lines.append("# Codex Review Pack")
+    lines.append("# AI Agent Review Pack")
     lines.append("")
     lines.append(f"- Generated at (UTC): {datetime.now(timezone.utc).isoformat()}")
     lines.append(f"- Source manifest: {args.manifest.resolve()}")

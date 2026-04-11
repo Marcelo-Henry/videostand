@@ -21,3 +21,5 @@ AGENTS.md
 .tmp/
 .agent/
 GEMINI.md
+.agent/
+node_modules/

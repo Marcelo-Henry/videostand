@@ -18,7 +18,7 @@ MANIFEST_PATH="$FRAMES_DIR/frames_manifest.json"
 SUMMARY_PATH="$OUTPUT_DIR/video_summary.md"
 TRANSCRIPT_PATH="$OUTPUT_DIR/audio_transcript.txt"
 TRANSCRIPT_SEGMENTS_PATH="$OUTPUT_DIR/audio_transcript.segments.json"
-REVIEW_PACK_PATH="$OUTPUT_DIR/codex_review_pack.md"
+REVIEW_PACK_PATH="$OUTPUT_DIR/agent_review_pack.md"
 INPUT_VIDEO=""
 
 has_ffmpeg_tools() {
@@ -282,7 +282,7 @@ echo "[ok] Frame extraction finished."
 
 
 PACK_CMD=(
-  python3 "$SCRIPT_DIR/prepare_codex_video_review.py"
+  python3 "$SCRIPT_DIR/prepare_agent_review.py"
   --manifest "$MANIFEST_PATH"
   --output-dir "$OUTPUT_DIR"
   --output "$REVIEW_PACK_PATH"
@@ -293,7 +293,7 @@ if [ -s "$TRANSCRIPT_PATH" ]; then
   PACK_CMD+=(--transcript-file "$TRANSCRIPT_PATH")
 fi
 
-echo "[info] Preparing local review pack for Codex..."
+echo "[info] Preparing local review pack for AI Agent..."
 "${PACK_CMD[@]}"
 echo "[ok] Done."
 echo "[ok] Review pack: $REVIEW_PACK_PATH"

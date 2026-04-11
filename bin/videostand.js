@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { intro, select, isCancel, cancel, spinner, text } from '@clack/prompts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -58,30 +59,28 @@ function colorize(text, ...styles) {
 
 function statusTag(type) {
   const tags = {
-    ok: colorize('[OK]', 'bold', 'green'),
-    warn: colorize('[WARN]', 'bold', 'yellow'),
-    error: colorize('[ERROR]', 'bold', 'red'),
-    info: colorize('[INFO]', 'bold', 'blue'),
-    miss: colorize('[MISS]', 'bold', 'red'),
-    hint: colorize('[HINT]', 'bold', 'cyan'),
+    ok: colorize('✔', 'bold', 'green'),
+    warn: colorize('⚠', 'bold', 'yellow'),
+    error: colorize('✘', 'bold', 'red'),
+    info: colorize('ℹ', 'bold', 'blue'),
+    miss: colorize('○', 'bold', 'red'),
+    hint: colorize('💡', 'bold', 'cyan'),
   };
-  return tags[type] || '[INFO]';
+  return tags[type] || '•';
 }
 
 function printFooter() {
-  console.log('');
-  console.log(colorize('Have any idea? Open an issue on our repo!', 'blue'));
-  console.log(colorize('https://www.github.com/Marcelo-Henry/videostand', 'dim'));
+  console.log(colorize('│', 'dim'));
+  console.log(`${colorize('└', 'dim')}  ${colorize('💡 Have any idea? Open an issue on our repo!', 'bold', 'blue')}`);
+  console.log(`   ${colorize('https://www.github.com/Marcelo-Henry/videostand', 'dim')}`);
 }
 
 function printHeader(title, subtitle = '') {
-  const width = process.stdout.columns || 80;
-  const rule = '-'.repeat(Math.max(24, Math.min(width, 80)));
-  console.log(colorize(title, 'bold', 'cyan'));
+  console.log(colorize(`┌  ${title}`, 'bold', 'cyan'));
   if (subtitle) {
-    console.log(colorize(subtitle, 'dim'));
+    console.log(colorize(`│  ${subtitle}`, 'dim'));
   }
-  console.log(colorize(rule, 'dim'));
+  console.log(colorize('│', 'dim'));
 }
 
 function printKeyValueRows(rows) {
@@ -130,6 +129,9 @@ function printHelp() {
   console.log('');
   console.log(colorize('Commands', 'bold'));
   printKeyValueRows([
+    ['run <video|url>', 'Process a video file standalone'],
+    ['watch [dir]', 'Watch a folder for new video files'],
+    ['optimize', 'Detect and configure hardware acceleration'],
     ['init <target|all>', 'Install skill folder for one/all targets'],
     ['remove <target|all>', 'Remove skill folder from one/all targets'],
     ['status [target|all]', 'Show installation and sync status'],
@@ -150,6 +152,7 @@ function printHelp() {
   printKeyValueRows([
     ['-g, --global', 'Use ~/.<target> instead of ./.<target>'],
     ['--force', 'Overwrite existing skill folder'],
+    ['--explain', 'Show detailed explanation and examples for a command'],
     ['--strict', 'With doctor: exit with code 1 if required deps are missing'],
     ['--fix', 'With doctor: auto-install missing dependencies (ffmpeg/faster-whisper)'],
     ['--json', 'With doctor: output machine-readable JSON'],
@@ -173,6 +176,7 @@ function parseOptions(args) {
     strict: false,
     json: false,
     fix: false,
+    explain: false,
   };
 
   for (let i = 0; i < args.length; i += 1) {
@@ -185,6 +189,11 @@ function parseOptions(args) {
 
     if (arg === '--force') {
       options.force = true;
+      continue;
+    }
+
+    if (arg === '--explain') {
+      options.explain = true;
       continue;
     }
 
@@ -223,6 +232,9 @@ function parseOptions(args) {
 
 function getPaths(options, target) {
   const dotDir = TARGETS[target];
+  if (!dotDir) {
+    throw new Error(`Target directory configuration not found for: ${target}`);
+  }
   const baseDir = options.global ? homedir() : process.cwd();
   const targetRoot = join(resolve(baseDir), dotDir);
   const targetDir = join(targetRoot, 'skills', 'videostand');
@@ -231,15 +243,16 @@ function getPaths(options, target) {
 }
 
 function commandWhere(options, target) {
-  const targets = target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const isAll = !target || target === ALL_TARGETS_KEYWORD;
+  const targets = isAll ? VALID_TARGETS : [target];
 
-  if (target === ALL_TARGETS_KEYWORD && process.stdout.isTTY) {
+  if (isAll && process.stdout.isTTY) {
     printHeader('VideoStand Paths', options.global ? 'global scope (~)' : 'local scope (cwd)');
   }
 
   for (const t of targets) {
     const { targetDir } = getPaths(options, t);
-    if (target === ALL_TARGETS_KEYWORD) {
+    if (isAll) {
       console.log(`${t}: ${targetDir}`);
     } else {
       console.log(targetDir);
@@ -253,9 +266,10 @@ function commandInit(options, target) {
     process.exit(1);
   }
 
-  let targets = target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const isAll = !target || target === ALL_TARGETS_KEYWORD;
+  let targets = isAll ? VALID_TARGETS : [target];
 
-  if (target === ALL_TARGETS_KEYWORD) {
+  if (isAll) {
     targets = targets.filter((t) => {
       const { targetRoot } = getPaths(options, t);
       return existsSync(targetRoot);
@@ -356,10 +370,10 @@ function buildInstallChecks(options, targets) {
 }
 
 function commandDoctor(options, target) {
-  let targets =
-    !target || target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const isAll = !target || target === ALL_TARGETS_KEYWORD;
+  let targets = isAll ? VALID_TARGETS : [target];
 
-  if (!target || target === ALL_TARGETS_KEYWORD) {
+  if (isAll) {
     targets = targets.filter((t) => {
       const { targetRoot } = getPaths(options, t);
       return existsSync(targetRoot);
@@ -410,49 +424,49 @@ function commandDoctor(options, target) {
     'VideoStand Doctor',
     options.global ? 'global scope (~)' : 'local scope (cwd)'
   );
-  console.log('');
-  console.log(colorize('Environment', 'bold'));
+
+  console.log(colorize('├  Environment', 'bold'));
 
   for (const [cmd, ok] of Object.entries(envChecks.required)) {
-    console.log(`  ${ok ? statusTag('ok') : statusTag('miss')} ${cmd}`);
+    console.log(`│  ${ok ? statusTag('ok') : statusTag('error')} ${cmd}`);
   }
 
   for (const [cmd, ok] of Object.entries(envChecks.optional)) {
     console.log(
-      `  ${ok ? statusTag('ok') : statusTag('warn')} ${cmd} (optional, required only for YouTube input)`
+      `│  ${ok ? statusTag('ok') : statusTag('warn')} ${cmd} (optional)`
     );
   }
 
   if (envChecks.fasterWhisper) {
-    console.log(`  ${statusTag('ok')} faster-whisper Python package`);
+    console.log(`│  ${statusTag('ok')} faster-whisper Python package`);
   } else {
     console.log(
-      `  ${statusTag('warn')} faster-whisper Python package (optional for visual-only summary)`
+      `│  ${statusTag('warn')} faster-whisper Python package (optional)`
     );
   }
 
   for (const t of targets) {
     const info = installChecks[t];
-    console.log('');
+    console.log(colorize('│', 'dim'));
     console.log(
-      colorize(`Installation (${t}${options.global ? ' global' : ' local'})`, 'bold')
+      colorize(`├  Installation (${t}${options.global ? ' global' : ' local'})`, 'bold')
     );
     console.log(
-      `  ${info.skillFile ? statusTag('ok') : statusTag('miss')} ${join(info.path, 'SKILL.md')}`
+      `│  ${info.skillFile ? statusTag('ok') : statusTag('miss')} SKILL.md`
     );
     console.log(
-      `  ${info.runScript ? statusTag('ok') : statusTag('miss')} ${join(info.path, 'scripts', 'run_video_summary.sh')}`
+      `│  ${info.runScript ? statusTag('ok') : statusTag('miss')} run_video_summary.sh`
     );
   }
 
-  console.log('');
+  console.log(colorize('│', 'dim'));
   if (envChecks.missingRequired.length === 0) {
-    console.log(`${statusTag('ok')} Doctor finished. Required dependencies are present.`);
+    console.log(`${colorize('└', 'dim')}  ${statusTag('ok')} Doctor finished. All good!`);
     return;
   }
 
   console.log(
-    `${statusTag('warn')} Missing required dependencies: ${envChecks.missingRequired.join(', ')}`
+    `${colorize('└', 'dim')}  ${statusTag('warn')} Missing dependencies: ${envChecks.missingRequired.join(', ')}`
   );
   console.log(`${statusTag('hint')} Install ffmpeg and python3 to run full local pipeline.`);
   if (options.strict) {
@@ -461,7 +475,8 @@ function commandDoctor(options, target) {
 }
 
 function commandStatus(options, target) {
-  const targets = !target || target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const isAll = !target || target === ALL_TARGETS_KEYWORD;
+  const targets = isAll ? VALID_TARGETS : [target];
   const results = [];
 
   for (const t of targets) {
@@ -470,14 +485,19 @@ function commandStatus(options, target) {
     const hasAgentDir = existsSync(targetRoot);
 
     if (!isInstalled) {
-      if (target !== ALL_TARGETS_KEYWORD || hasAgentDir) {
+      if (!isAll || hasAgentDir) {
         results.push({ target: t, status: 'MISSING', path: targetDir });
       }
       continue;
     }
 
     // Check if files are in sync
-    const filesToCompare = ['SKILL.md', 'scripts/run_video_summary.sh', 'scripts/extract_frames.py'];
+    const filesToCompare = [
+      'SKILL.md',
+      'scripts/run_video_summary.sh',
+      'scripts/extract_frames.py',
+      'scripts/prepare_agent_review.py'
+    ];
     let isInSync = true;
     for (const file of filesToCompare) {
       const src = join(SOURCE_SKILL_DIR, file);
@@ -512,33 +532,34 @@ function commandStatus(options, target) {
   );
 
   if (results.length === 0) {
-    console.log(`  ${statusTag('info')} No targets found in this scope.`);
+    console.log(`│  ${statusTag('info')} No targets found in this scope.`);
+    console.log(colorize('└', 'dim'));
     return;
   }
 
-  const rows = results.map((r) => {
+  results.forEach((r, idx) => {
     let tag = '';
     if (r.status === 'OK') tag = statusTag('ok');
-    else if (r.status === 'OUTDATED') tag = colorize('[UPDATE]', 'bold', 'yellow');
-    else tag = colorize('[MISSING]', 'dim');
+    else if (r.status === 'OUTDATED') tag = colorize('⚠ UPDATE', 'bold', 'yellow');
+    else tag = colorize('○ MISSING', 'dim');
 
-    return [r.target, `${tag} ${colorize(r.path, 'dim')}`];
+    const symbol = idx === results.length - 1 ? '└' : '├';
+    console.log(`${colorize(symbol, 'dim')}  ${r.target.padEnd(12)} ${tag} ${colorize(r.path, 'dim')}`);
   });
 
-  printKeyValueRows(rows);
   console.log('');
-
   const outdated = results.filter((r) => r.status === 'OUTDATED');
   if (outdated.length > 0) {
     console.log(`${statusTag('hint')} ${outdated.length} target(s) are outdated.`);
-    console.log(`  Run "videostand sync all" to update all targets.`);
-  } else {
+    console.log(`   Run "vs sync" to update.`);
+  } else if (results.some(r => r.status === 'OK')) {
     console.log(`${statusTag('ok')} All installed targets are up-to-date.`);
   }
 }
 
 function commandSync(options, target) {
-  const targets = !target || target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const isAll = !target || target === ALL_TARGETS_KEYWORD;
+  const targets = isAll ? VALID_TARGETS : [target];
   const installedTargets = targets.filter((t) => {
     const { targetDir } = getPaths(options, t);
     return existsSync(targetDir);
@@ -553,21 +574,22 @@ function commandSync(options, target) {
 
   // Reuse commandInit but with force: true
   const syncOptions = { ...options, force: true };
-  const targetToInit = target === ALL_TARGETS_KEYWORD ? ALL_TARGET_KEYWORD_DUMMY_BUT_STILL_USE_LIST : 'specific';
 
   // It's cleaner to just loop and call the installation logic or call commandInit.
-  // We'll call commandInit for each if it's not 'all'.
-  if (target === ALL_TARGETS_KEYWORD) {
-    commandInit(syncOptions, ALL_TARGETS_KEYWORD);
+  if (isAll) {
+    for (const t of installedTargets) {
+      commandInit(syncOptions, t);
+    }
   } else {
     commandInit(syncOptions, target);
   }
 }
 
-const ALL_TARGET_KEYWORD_DUMMY_BUT_STILL_USE_LIST = 'all';
+
 
 function commandRemove(options, target) {
-  const targets = target === ALL_TARGETS_KEYWORD ? VALID_TARGETS : [target];
+  const isAll = !target || target === ALL_TARGETS_KEYWORD;
+  const targets = isAll ? VALID_TARGETS : [target];
   let removedCount = 0;
 
   for (const t of targets) {
@@ -577,7 +599,7 @@ function commandRemove(options, target) {
       console.log(`${statusTag('ok')} Removed skill from "${t}".`);
       removedCount++;
     } else {
-      if (target !== ALL_TARGETS_KEYWORD) {
+      if (!isAll) {
         console.error(`${statusTag('error')} Skill not found for "${t}".`);
         console.error(`  path: ${targetDir}`);
         process.exit(1);
@@ -587,6 +609,147 @@ function commandRemove(options, target) {
 
   console.log('');
   console.log(`${statusTag('ok')} Removal finished. Removed from ${removedCount} target(s).`);
+}
+
+const COMMAND_DOCS = {
+  init: {
+    description: 'Installs the VideoStand skill into a target agent directory. It copies all necessary scripts and the SKILL.md instructions.',
+    input: 'vs init cursor --force',
+    output: '✔ cursor -> ./.cursor/skills/videostand',
+  },
+  status: {
+    description: 'Checks if your installed skills are synchronized with the latest version in the CLI package. Ideal for finding outdated files.',
+    input: 'vs status',
+    output: '├  cursor       ✔ OK\n└  claude       ⚠ UPDATE',
+  },
+  run: {
+    description: 'Processes a video file or YouTube URL directly. It extracts frames, transcribes audio, and prepares a summary pack.',
+    input: 'vs run ./demo.mp4',
+    output: '✔ Audio transcript generated.\n✔ Video processing completed!',
+  },
+  watch: {
+    description: 'Monitors a directory for new video files. When a recording is detected, it automatically starts the processing in the background.',
+    input: 'vs watch ~/Downloads',
+    output: '▶️ New video detected: game.mp4\nProcessing...',
+  },
+  doctor: {
+    description: 'A diagnostic tool to verify if your environment (Python, FFmpeg, etc.) is ready to run VideoStand at full performance.',
+    input: 'vs doctor --fix',
+    output: '├  Environment\n│  ✔ python3\n│  ✔ ffmpeg',
+  },
+  sync: {
+    description: 'Automatically updates all your installed agent skills to the latest version currently available in your VideoStand CLI tool.',
+    input: 'vs sync all',
+    output: 'ℹ Syncing 3 target(s)...\n✔ Installation finished.',
+  },
+  optimize: {
+    description: 'Scans your computer hardware (NVIDIA GPUs or Apple Silicon) to optimize processing limits and activation flags.',
+    input: 'vs optimize',
+    output: '⚡ NVIDIA GPU detected. CUDA acceleration active.',
+  },
+  where: {
+    description: 'Reveals the exact disk path where a specific agent skill is located.',
+    input: 'vs where cursor',
+    output: './.cursor/skills/videostand',
+  },
+  remove: {
+    description: 'Safely deletes a VideoStand skill installation from a target agent directory.',
+    input: 'vs remove all',
+    output: '✔ Removed skill from "cursor".',
+  },
+};
+
+function commandExplain(cmd) {
+  const doc = COMMAND_DOCS[cmd];
+  if (!doc) {
+    console.error(`${statusTag('error')} No documentation found for command: ${cmd}`);
+    return;
+  }
+
+  printHeader(`Explain: ${cmd}`, 'Detailed Command Documentation');
+  
+  console.log(colorize('├  Description', 'bold'));
+  console.log(`│  ${doc.description}`);
+  console.log(colorize('│', 'dim'));
+
+  console.log(colorize('├  Example Input', 'bold'));
+  console.log(`│  ${colorize(doc.input, 'cyan')}`);
+  console.log(colorize('│', 'dim'));
+
+  console.log(colorize('├  Simulated Output', 'bold'));
+  doc.output.split('\n').forEach(line => {
+    console.log(`│  ${line}`);
+  });
+
+  console.log(colorize('│', 'dim'));
+  console.log(`${colorize('└', 'dim')}  Documentation finished.`);
+}
+
+async function commandRun(options, videoPath) {
+  if (!videoPath) {
+    console.error(colorize('MISSING: video path', 'bold', 'yellow'));
+    process.exit(1);
+  }
+  console.log(`${statusTag('info')} Processing video: ${videoPath}`);
+  const child = spawnSync('bash', [resolve(SOURCE_SKILL_DIR, 'scripts', 'run_video_summary.sh'), videoPath], { stdio: 'inherit' });
+  if (child.status === 0) {
+    console.log(`${statusTag('ok')} Video processing completed successfully!`);
+  } else {
+    console.error(`${statusTag('error')} Video processing failed.`);
+    process.exit(1);
+  }
+}
+
+async function commandWatch(options, dirPath) {
+  const watchDir = dirPath || process.cwd();
+  console.log(colorize(`👀 Watching ${watchDir} for new videos...`, 'bold', 'cyan'));
+  console.log(colorize(`Press Ctrl+C to stop.`, 'dim'));
+
+  let chokidar;
+  try {
+    chokidar = (await import('chokidar')).default || (await import('chokidar'));
+  } catch (err) {
+    console.error(colorize(`MISSING: chokidar package.`, 'bold', 'red'));
+    console.error(`Please install it first using: npm install -g chokidar`);
+    process.exit(1);
+  }
+
+  const watcher = chokidar.watch(watchDir, {
+    ignored: /(^|[\/\\])\../,
+    persistent: true,
+    depth: 1,
+    awaitWriteFinish: {
+      stabilityThreshold: 2000,
+      pollInterval: 100
+    }
+  });
+
+  watcher.on('add', path => {
+    if (path.endsWith('.mp4') || path.endsWith('.mkv') || path.endsWith('.mov')) {
+      console.log('');
+      console.log(colorize(`▶️ New video detected: ${path}`, 'bold', 'green'));
+      commandRun(options, path);
+      console.log('');
+      console.log(colorize(`👀 Resuming watch on ${watchDir}...`, 'bold', 'cyan'));
+    }
+  });
+}
+
+function commandOptimize(options) {
+  const s = spinner();
+  s.start('Detecting hardware for optimization...');
+  const hasNvidia = spawnSync('nvidia-smi', [], { stdio: 'ignore' }).status === 0;
+  const isMac = process.platform === 'darwin';
+
+  if (hasNvidia) {
+    s.stop('NVIDIA GPU detected. CUDA acceleration is recommended.');
+    console.log(colorize(`To fully activate, run the local asr install script with CUDA flag.`, 'green'));
+  } else if (isMac) {
+    s.stop('Apple Silicon detected. MPS acceleration is mapped.');
+    console.log(colorize(`Optimization profile applied for Mac hardware.`, 'green'));
+  } else {
+    s.stop('No specific hardware found. Kept CPU defaults.');
+  }
 }
 
 function isNewer(latest, current) {
@@ -649,53 +812,148 @@ async function checkUpdate() {
 
 async function main() {
   await checkUpdate();
-  const args = process.argv.slice(2);
+  let args = process.argv.slice(2);
+
+  let agentMode = false;
+  if (args.length > 0 && args[args.length - 1] === '--agent') {
+    agentMode = true;
+    args = args.slice(0, -1);
+  }
 
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
     printVersion();
     return;
   }
 
-  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+  if (args.includes('--help') || args.includes('-h')) {
     printHelp();
     return;
   }
 
   const positionals = args.filter((arg) => !arg.startsWith('-'));
+  const optionArgs = args.filter((arg) => arg.startsWith('-'));
+  const options = parseOptions(optionArgs);
 
-  if (positionals.length === 0) {
-    printHelp();
-    process.exit(1);
+  let command = positionals[0];
+  let target = positionals[1];
+  if (options.explain) {
+    commandExplain(command || 'help');
+    printFooter();
+    return;
   }
 
-  const command = positionals[0];
-  const target = positionals[1];
+  const validCommands = ['init', 'where', 'doctor', 'remove', 'status', 'sync', 'help', 'run', 'watch', 'optimize'];
 
-  if (
-    command !== 'init' &&
-    command !== 'where' &&
-    command !== 'doctor' &&
-    command !== 'remove' &&
-    command !== 'status' &&
-    command !== 'sync'
-  ) {
-    console.error(`${statusTag('error')} Unknown command: ${command}`);
-    printHelp();
-    process.exit(1);
-  }
+  if (agentMode) {
+    if (!command) {
+      console.error(colorize('MISSING: command', 'bold', 'yellow'));
+      process.exit(1);
+    }
+    if (!validCommands.includes(command)) {
+      console.error(`${statusTag('error')} Unknown command: ${command}`);
+      process.exit(1);
+    }
+    if ((command === 'init' || command === 'where' || command === 'remove') && !target) {
+      console.error(colorize('MISSING: target', 'bold', 'yellow'));
+      process.exit(1);
+    }
+    if ((command === 'run') && !target) {
+      console.error(colorize('MISSING: video path', 'bold', 'yellow'));
+      process.exit(1);
+    }
+  } else {
+    // Interactive Mode
+    if (command && !validCommands.includes(command)) {
+      console.error(`${statusTag('error')} Unknown command: ${command}`);
+      printHelp();
+      process.exit(1);
+    }
 
-  if (
-    (command === 'init' || command === 'where' || command === 'remove') &&
-    !target
-  ) {
-    console.error(
-      `${statusTag('error')} Missing target. Usage: videostand ${command} <${VALID_TARGETS.join('|')}|all>`
-    );
-    process.exit(1);
+    if (!command) {
+      // console.clear();
+      intro(colorize(`VideoStand CLI v${PACKAGE_VERSION}`, 'bold', 'cyan'));
+
+      command = await select({
+        message: 'What do you want to do?',
+        options: [
+          { value: 'explain', label: '📖 Explore command details (explain)' },
+          { value: 'help', label: 'Show usage guide (help)' },
+          { value: 'run', label: 'Process video standalone (run)' },
+          { value: 'watch', label: 'Watch folder for new videos (watch)' },
+          { value: 'optimize', label: 'Optimize hardware config (optimize)' },
+          { value: 'init', label: 'Install agent skill (init)' },
+          { value: 'status', label: 'Check for outdated agent skills (status)' },
+          { value: 'sync', label: 'Update installed skills (sync)' },
+          { value: 'doctor', label: 'Check dependencies and installation status (doctor)' },
+          { value: 'where', label: 'Print installation path (where)' },
+          { value: 'remove', label: 'Remove skill (remove)' }
+        ],
+      });
+
+      if (isCancel(command)) {
+        cancel('Operation cancelled.');
+        process.exit(0);
+      }
+
+      if (command === 'explain') {
+        const explainCmd = await select({
+          message: 'Which command would you like to explore? 📖',
+          options: [
+            { value: 'run', label: 'run' },
+            { value: 'watch', label: 'watch' },
+            { value: 'optimize', label: 'optimize' },
+            { value: 'status', label: 'status' },
+            { value: 'sync', label: 'sync' },
+            { value: 'doctor', label: 'doctor' },
+            { value: 'init', label: 'init' },
+            { value: 'remove', label: 'remove' },
+            { value: 'where', label: 'where' },
+          ],
+        });
+
+        if (isCancel(explainCmd)) {
+          cancel('Operation cancelled.');
+          process.exit(0);
+        }
+
+        commandExplain(explainCmd);
+        printFooter();
+        process.exit(0);
+      }
+    }
+
+    const needsTarget = ['init', 'where', 'remove'].includes(command);
+    if (!target && needsTarget) {
+      const targetOptions = [{ value: ALL_TARGETS_KEYWORD, label: 'All targets (all)' }];
+      VALID_TARGETS.forEach(t => targetOptions.push({ value: t, label: t }));
+
+      target = await select({
+        message: `Which target do you want to run '${command}' for?`,
+        options: targetOptions,
+      });
+
+      if (isCancel(target)) {
+        cancel('Operation cancelled.');
+        process.exit(0);
+      }
+    }
+
+    const needsVideoPath = ['run', 'watch'].includes(command);
+    if (!target && needsVideoPath) {
+      target = await text({
+        message: `Provide the path for '${command}':`,
+        placeholder: command === 'watch' ? './videos' : './video.mp4',
+      });
+      if (isCancel(target)) {
+        cancel('Operation cancelled.');
+        process.exit(0);
+      }
+    }
   }
 
   if (
     target &&
+    !['run', 'watch'].includes(command) &&
     !VALID_TARGETS.includes(target) &&
     target !== ALL_TARGETS_KEYWORD
   ) {
@@ -704,9 +962,6 @@ async function main() {
     );
     process.exit(1);
   }
-
-  const optionArgs = args.filter((arg) => arg !== command && arg !== target);
-  const options = parseOptions(optionArgs);
 
   if (command === 'init') {
     commandInit(options, target);
@@ -720,6 +975,15 @@ async function main() {
     commandRemove(options, target);
   } else if (command === 'doctor') {
     commandDoctor(options, target);
+  } else if (command === 'run') {
+    await commandRun(options, target);
+  } else if (command === 'watch') {
+    await commandWatch(options, target);
+  } else if (command === 'optimize') {
+    commandOptimize(options);
+  } else if (command === 'help') {
+    printHelp();
+    return;
   }
 
   printFooter();
