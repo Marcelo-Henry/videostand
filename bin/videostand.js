@@ -24,12 +24,12 @@ const TARGETS = {
   roo: '.roo',
   openhands: '.openhands',
   qwen: '.qwen',
-  copilot: '.copilot',
+  copilot: { local: '.github', global: '.copilot' },
   junie: '.junie',
   kilocode: '.kilocode',
   commandcode: '.commandcode',
   kode: '.kode',
-  mux: '.mux',
+  mux: '.agents',
   openclaw: '.openclaw',
 };
 
@@ -231,10 +231,13 @@ function parseOptions(args) {
 }
 
 function getPaths(options, target) {
-  const dotDir = TARGETS[target];
-  if (!dotDir) {
+  const targetConfig = TARGETS[target];
+  if (!targetConfig) {
     throw new Error(`Target directory configuration not found for: ${target}`);
   }
+  const dotDir = typeof targetConfig === 'string'
+    ? targetConfig
+    : (options.global ? targetConfig.global : targetConfig.local);
   const baseDir = options.global ? homedir() : process.cwd();
   const targetRoot = join(resolve(baseDir), dotDir);
   const targetDir = join(targetRoot, 'skills', 'videostand');

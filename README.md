@@ -121,6 +121,8 @@ videostand --version  |  videostand -v
 ~/.codex/skills/videostand      ← global
 ```
 
+> **Note:** Some agents use different directories for local vs global. GitHub Copilot CLI installs locally into `.github/skills/videostand` and globally into `~/.copilot/skills/videostand`. Use `videostand where copilot` to confirm the resolved path.
+
 ---
 
 ## 🩺 Preflight check (doctor)
