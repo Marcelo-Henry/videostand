@@ -216,5 +216,7 @@ videostand -g remove all
 ---
 
 <div align="center">
-  <sub>Made with ❤️ by Marcelo, Codex and Antigravity</sub>
+  <sub>Made with ❤️ by Marcelo, Codex, Claude and Antigravity</sub>
+</div>
+
 </div>

@@ -130,6 +130,7 @@ function printHelp() {
   console.log(colorize('Commands', 'bold'));
   printKeyValueRows([
     ['run <video|url>', 'Process a video file standalone'],
+    ['merge <v1> <v2> ...', 'Merge multiple videos into one (--output, --order, --reencode)'],
     ['watch [dir]', 'Watch a folder for new video files'],
     ['optimize', 'Detect and configure hardware acceleration'],
     ['init <target|all>', 'Install skill folder for one/all targets'],
@@ -156,6 +157,9 @@ function printHelp() {
     ['--strict', 'With doctor: exit with code 1 if required deps are missing'],
     ['--fix', 'With doctor: auto-install missing dependencies (ffmpeg/faster-whisper)'],
     ['--json', 'With doctor: output machine-readable JSON'],
+    ['--output <path>', 'With merge: output file path'],
+    ['--order <indices>', 'With merge: comma-separated 0-based order (e.g. "2,0,1")'],
+    ['--reencode', 'With merge: force re-encoding (for mixed codecs/resolutions)'],
   ]);
   console.log('');
   console.log(colorize('Path Pattern', 'bold'));
@@ -177,6 +181,9 @@ function parseOptions(args) {
     json: false,
     fix: false,
     explain: false,
+    output: null,
+    order: null,
+    reencode: false,
   };
 
   for (let i = 0; i < args.length; i += 1) {
@@ -209,6 +216,21 @@ function parseOptions(args) {
 
     if (arg === '--fix') {
       options.fix = true;
+      continue;
+    }
+
+    if (arg === '--reencode') {
+      options.reencode = true;
+      continue;
+    }
+
+    if (arg === '--output') {
+      options.output = args[++i];
+      continue;
+    }
+
+    if (arg === '--order') {
+      options.order = args[++i];
       continue;
     }
 
@@ -615,6 +637,11 @@ function commandRemove(options, target) {
 }
 
 const COMMAND_DOCS = {
+  merge: {
+    description: 'Joins multiple video files into a single output. Supports custom ordering and handles mixed codecs automatically.',
+    input: 'vs merge clip1.mp4 clip2.mp4 clip3.mp4 --output final.mp4',
+    output: '✔ Merged video saved to final.mp4',
+  },
   init: {
     description: 'Installs the VideoStand skill into a target agent directory. It copies all necessary scripts and the SKILL.md instructions.',
     input: 'vs init cursor --force',
@@ -699,6 +726,28 @@ async function commandRun(options, videoPath) {
     console.log(`${statusTag('ok')} Video processing completed successfully!`);
   } else {
     console.error(`${statusTag('error')} Video processing failed.`);
+    process.exit(1);
+  }
+}
+
+function commandMerge(options, inputs) {
+  if (!inputs || inputs.length < 2) {
+    console.error(`${statusTag('error')} merge requires at least 2 input video paths.`);
+    console.error(`${statusTag('hint')} Usage: vs merge video1.mp4 video2.mp4 [video3.mp4 ...] --output merged.mp4`);
+    process.exit(1);
+  }
+
+  const output = options.output || 'merged.mp4';
+  const scriptPath = resolve(SOURCE_SKILL_DIR, 'scripts', 'merge_videos.py');
+
+  const cmd = ['python3', scriptPath, '--inputs', ...inputs, '--output', output];
+  if (options.order) cmd.push('--order', options.order);
+  if (options.reencode) cmd.push('--reencode');
+
+  printHeader('VideoStand Merge', `${inputs.length} videos → ${output}`);
+  const child = spawnSync(cmd[0], cmd.slice(1), { stdio: 'inherit' });
+  if (child.status !== 0) {
+    console.error(`${statusTag('error')} Merge failed.`);
     process.exit(1);
   }
 }
@@ -833,9 +882,22 @@ async function main() {
     return;
   }
 
-  const positionals = args.filter((arg) => !arg.startsWith('-'));
-  const optionArgs = args.filter((arg) => arg.startsWith('-'));
-  const options = parseOptions(optionArgs);
+  const positionals = [];
+  const flagArgs = [];
+  let _i = 0;
+  while (_i < args.length) {
+    const arg = args[_i];
+    if (arg === '--output' || arg === '--order') {
+      flagArgs.push(arg);
+      if (_i + 1 < args.length) flagArgs.push(args[++_i]);
+    } else if (arg.startsWith('-')) {
+      flagArgs.push(arg);
+    } else {
+      positionals.push(arg);
+    }
+    _i++;
+  }
+  const options = parseOptions(flagArgs);
 
   let command = positionals[0];
   let target = positionals[1];
@@ -845,7 +907,7 @@ async function main() {
     return;
   }
 
-  const validCommands = ['init', 'where', 'doctor', 'remove', 'status', 'sync', 'help', 'run', 'watch', 'optimize'];
+  const validCommands = ['init', 'where', 'doctor', 'remove', 'status', 'sync', 'help', 'run', 'watch', 'optimize', 'merge'];
 
   if (agentMode) {
     if (!command) {
@@ -862,6 +924,10 @@ async function main() {
     }
     if ((command === 'run') && !target) {
       console.error(colorize('MISSING: video path', 'bold', 'yellow'));
+      process.exit(1);
+    }
+    if (command === 'merge' && positionals.length < 3) {
+      console.error(colorize('MISSING: at least 2 video paths for merge', 'bold', 'yellow'));
       process.exit(1);
     }
   } else {
@@ -882,6 +948,7 @@ async function main() {
           { value: 'explain', label: '📖 Explore command details (explain)' },
           { value: 'help', label: 'Show usage guide (help)' },
           { value: 'run', label: 'Process video standalone (run)' },
+          { value: 'merge', label: 'Merge multiple videos into one (merge)' },
           { value: 'watch', label: 'Watch folder for new videos (watch)' },
           { value: 'optimize', label: 'Optimize hardware config (optimize)' },
           { value: 'init', label: 'Install agent skill (init)' },
@@ -903,6 +970,7 @@ async function main() {
           message: 'Which command would you like to explore? 📖',
           options: [
             { value: 'run', label: 'run' },
+            { value: 'merge', label: 'merge' },
             { value: 'watch', label: 'watch' },
             { value: 'optimize', label: 'optimize' },
             { value: 'status', label: 'status' },
@@ -952,11 +1020,48 @@ async function main() {
         process.exit(0);
       }
     }
+
+    if (command === 'merge' && positionals.length < 3) {
+      console.log(`${statusTag('info')} Enter video paths one by one. Leave blank to finish.`);
+      let pathIndex = 1;
+      while (true) {
+        const p = await text({
+          message: `Video ${pathIndex} path:`,
+          placeholder: `./video${pathIndex}.mp4`,
+        });
+        if (isCancel(p)) {
+          cancel('Operation cancelled.');
+          process.exit(0);
+        }
+        const trimmed = p.trim();
+        if (!trimmed) {
+          if (positionals.length < 3) {
+            console.error(`${statusTag('error')} At least 2 video paths are required.`);
+            continue;
+          }
+          break;
+        }
+        positionals.push(trimmed);
+        pathIndex++;
+      }
+      if (!options.output) {
+        const out = await text({
+          message: 'Output file path:',
+          placeholder: 'merged.mp4',
+          initialValue: 'merged.mp4',
+        });
+        if (isCancel(out)) {
+          cancel('Operation cancelled.');
+          process.exit(0);
+        }
+        options.output = out.trim() || 'merged.mp4';
+      }
+    }
   }
 
   if (
     target &&
-    !['run', 'watch'].includes(command) &&
+    !['run', 'watch', 'merge'].includes(command) &&
     !VALID_TARGETS.includes(target) &&
     target !== ALL_TARGETS_KEYWORD
   ) {
@@ -980,6 +1085,8 @@ async function main() {
     commandDoctor(options, target);
   } else if (command === 'run') {
     await commandRun(options, target);
+  } else if (command === 'merge') {
+    commandMerge(options, positionals.slice(1));
   } else if (command === 'watch') {
     await commandWatch(options, target);
   } else if (command === 'optimize') {

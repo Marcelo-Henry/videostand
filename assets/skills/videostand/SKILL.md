@@ -20,7 +20,7 @@ Use when the request involves:
 ## When NOT to Use
 
 Do not use this skill for:
-- Video editing (cuts, overlays, color grading, montaging);
+- Video editing (cuts, overlays, color grading) — for merging multiple videos, see the **Merge Videos** section below;
 - Legal transcription requiring word-for-word precision;
 - High-risk inferences without primary source confirmation.
 
@@ -482,6 +482,55 @@ If the video is clearly a technical screen recording (e.g., open browser console
 - **Omit** viral cut suggestions (it would be inappropriate).
 - **Focus** on identifying visual logs, error messages, and the exact flow that led to the problem.
 - **Prioritize** the technical chronology of events over entertainment.
+
+## Merge Videos
+
+Use `merge_videos.py` when the user wants to join multiple video files into a single output. The agent has full control over the final order.
+
+### When to Use
+
+- User provides 2+ video files and asks to combine/join/merge them.
+- User wants to reorder segments before merging (e.g. "put Z before X").
+- User wants to concatenate clips produced by `clip_video.py`.
+
+### Merge Command
+
+```bash
+python3 "$VSUM/merge_videos.py" \
+  --inputs ./video_x.mp4 ./video_y.mp4 \
+  --output ./merged.mp4
+```
+
+With custom order (0-based indices):
+
+```bash
+python3 "$VSUM/merge_videos.py" \
+  --inputs ./video_x.mp4 ./video_y.mp4 ./video_z.mp4 \
+  --order "2,0,1" \
+  --output ./merged.mp4
+```
+
+Force re-encoding (different codecs or resolutions):
+
+```bash
+python3 "$VSUM/merge_videos.py" \
+  --inputs ./video_x.mp4 ./video_y.mp4 \
+  --reencode \
+  --output ./merged.mp4
+```
+
+### Agent Workflow for Merge Requests
+
+1. **List the inputs**: confirm each file exists before proceeding.
+2. **Determine order**: if the user specifies an order, map it to `--order` indices. If not, use the order provided.
+3. **Compatibility check**: the script auto-detects codec/resolution mismatches and switches to re-encoding automatically. Only pass `--reencode` explicitly if the user requests it.
+4. **Execute**: run `merge_videos.py` and report the output path.
+5. **Do not expose** script names, flags, or internal paths to the user.
+
+### Output Policy
+
+- Confirm success with the output file path.
+- If the merge fails, respond neutrally: "I couldn't merge the videos right now. Please check that all files are valid and try again."
 
 ## References
 
